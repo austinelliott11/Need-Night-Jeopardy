@@ -143,6 +143,14 @@ header.top .logo{font-size:22px}
 .voicerow{display:flex;gap:8px;align-items:center}
 .voicerow select{flex:1;min-width:0;font-family:var(--body);font-size:16px;padding:8px;border-radius:8px;border:1px solid #3a5263;background:#0b1116;color:var(--ink)}
 .linkbtn{background:none;border:0;color:#ffd27a;text-decoration:underline;font:inherit;font-weight:700;margin-left:10px;padding:4px}
+.mgrid{display:flex;flex-wrap:wrap;gap:1vw;justify-content:center}
+.mcard,.mpick{display:flex;flex-direction:column;align-items:center;gap:.8vh;background:#101a21;border:1px solid var(--line);border-top:6px solid var(--c);border-radius:12px;padding:1.2vh 1.2vw;min-width:clamp(130px,13vw,240px);color:var(--ink);font-family:var(--body)}
+.mcard b,.mpick b{color:var(--c);font-size:clamp(16px,1.6vw,28px);text-transform:uppercase;letter-spacing:.03em}
+.mcard .btn{font-size:clamp(20px,2vw,34px);padding:.6vh 1.6vw}
+.mcard.out{opacity:.4}
+.mpick{cursor:pointer} .mpick span{font-family:var(--display);font-weight:900;font-size:clamp(18px,1.8vw,30px)}
+.mpick.on{outline:3px solid #fff;outline-offset:2px;background:#1d2f3d}
+.chipx{background:none;border:0;color:var(--mute);font-size:15px;padding:0 0 0 4px;cursor:pointer}
 /* answer box + timers */
 #ansbox{background:var(--board);border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
 #ans-clue{margin:0;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:17px;line-height:1.15;text-align:center}
@@ -284,11 +292,12 @@ const BUILTIN = [["C1-01",0,"Eragon",200,"Eragon's dragon is named for the color
 const BUILTIN_CATS = ["Fantasy & Sci-Fi Books","Star Wars","Video Games","Wilderness Survival","Anime","Deadliest Warrior & Animals"];
 const BASE = [200,400,600,800,1000];
 const COLORS = ["#ef5a4c","#ff9a3d","#f2cc4a","#b4e04c","#3fc46e","#2fd3c4","#4fb3ea","#6d84ff","#a86cf0","#f26cbf","#eef1ea","#c4915e"];   // red orange yellow lime green teal sky blue purple pink white tan
-const PREFIX = "nnj-live-v8-";
+const PREFIX = "nnj-live-v9-";
+const BUILD = "1793938963";
 /* Backup relay. Some WiFi (Airbnbs, hotels, mesh routers) blocks phones from talking straight to the laptop.
    When that happens, messages go through a public relay instead. Phones switch automatically. */
 const RELAYS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
-const TOPIC = () => "stjeezy/v8/" + CODE;
+const TOPIC = () => "stjeezy/v9/" + CODE;
 const RELAY_ONLY = /[?&]relay=1/.test(location.search);   // for testing the relay path
 let relayClients = [], relayLive = null, lastAt = 0;
 const BUZZ_WINDOW = 300;
@@ -382,6 +391,25 @@ function judgeFor(guess, q, df, known){
 }
 function buildDF(bank){ const df = new Map(); for(const q of bank){ const seen = new Set(); mVariants(q.a, q.x).forEach(v => mTokens(v).forEach(t => seen.add(t))); seen.forEach(t => df.set(t, (df.get(t) || 0) + 1)); } return df; }
 
+/* ===== auto update: every device checks for a newer version and reloads at a safe moment ===== */
+let newBuild = null;
+async function checkUpdate(){
+  if(BUILD.startsWith("__")) return;
+  try{ const txt = await fetch(location.pathname + "?bv=" + Date.now(), {cache: "no-store"}).then(r => r.text()); const m = txt.match(/const BUILD = "(\d+)"/); if(m && m[1] !== BUILD) newBuild = m[1]; }catch(e){}
+  applyUpdate();
+}
+function applyUpdate(){
+  if(!newBuild) return;
+  const onLanding = !$("landing").classList.contains("hidden");
+  const safe = !G || ["lobby", "board", "reveal", "over", "roundend"].includes(G.phase);
+  if(!onLanding && !safe) return;   // never in the middle of a clue
+  if(isHost && !onLanding){ try{ sessionStorage.setItem("nnj-autoresume", "1"); }catch(e){} location.replace(location.pathname + "?bv=" + newBuild); return; }
+  if(!isHost && !onLanding && CODE){ location.replace(location.pathname + "?code=" + CODE + "&bv=" + newBuild); return; }
+  const q = new URLSearchParams(location.search); q.set("bv", newBuild); location.replace(location.pathname + "?" + q.toString());
+}
+setTimeout(checkUpdate, 4000); setInterval(checkUpdate, 60000);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") checkUpdate(); });
+
 /* ===== screen wake ===== */
 let wake = null;
 async function keepAwake(){ try{ if("wakeLock" in navigator && document.visibilityState === "visible" && !wake){ wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } }catch(e){} }
@@ -408,7 +436,7 @@ const SFX = {
   try{ const n = localStorage.getItem("nnj-name"); if(n) $("name").value = n; }catch(e){}
   if(typeof Peer === "undefined"){ $("status").textContent = "Couldn't load the game's connection library. Check your internet and reload."; return; }
   ["join-card","or","btn-host"].forEach(id => $(id).classList.remove("hidden"));
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host8") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host9") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ $("btn-host").textContent = "Resume hosting room " + saved.code; $("btn-new").classList.remove("hidden"); }
   $("status").textContent = code ? "Type your name and tap Join." : "Type your name, then join a room or host one.";
   // a phone that reloads mid-game (Safari does this in the background) rejoins on its own
@@ -500,7 +528,7 @@ function send(m){
 function onHost(m){
   if(!m || typeof m !== "object") return;
   lastPong = Date.now();
-  if(m.type === "state"){ if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
+  if(m.type === "state"){ if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(newBuild) setTimeout(applyUpdate, 800); if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
   else if(m.type === "kicked"){ try{ localStorage.removeItem("nnj-joined"); }catch(e){} kicked = true; try{ relayLive && relayLive.end(true); }catch(e){} relayLive = null; const c = conn; conn = null; clearInterval(pingTimer); clearTimeout(retryTimer); try{ c && c.close(); }catch(e){} clearTimeout(retryTimer); setConn("The host removed you from this game. Reload the page to rejoin.", true); }
 }
 /* leave the room and go back to the start screen to enter a different code */
@@ -517,7 +545,8 @@ function act(m){ if(!isHost) send(m); }
 /* ===== host engine ===== */
 let played = new Set(), restoring = false, idTries = 0;
 function newCode(){ const L = "ABCDEFGHJKLMNPQRSTUVWXYZ"; let c = ""; for(let i=0;i<4;i++) c += L[Math.floor(Math.random()*L.length)]; return c; }
-$("btn-new").onclick = () => { try{ localStorage.removeItem("nnj-host8"); }catch(e){} $("btn-host").click(); };
+try{ if(sessionStorage.getItem("nnj-autoresume")){ sessionStorage.removeItem("nnj-autoresume"); setTimeout(() => { if(!$("btn-host").classList.contains("hidden")) $("btn-host").click(); }, 300); } }catch(e){}
+$("btn-new").onclick = () => { try{ localStorage.removeItem("nnj-host9"); }catch(e){} $("btn-host").click(); };
 $("btn-host").onclick = async () => {
   isHost = true; myName = "";
   $("landing").classList.add("hidden"); $("tv").classList.remove("hidden"); keepAwake();
@@ -526,7 +555,7 @@ $("btn-host").onclick = async () => {
   try{ played = new Set(JSON.parse(localStorage.getItem("nnj-played") || "[]")); }catch(e){}
   await Promise.all([loadBank(), loadIce()]);
   DF = buildDF(BANK); KNOWN = buildKnown(BANK);
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host8") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host9") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ CODE = saved.code; G = saved.G; P = saved.P || {}; restoring = true; }
   else { CODE = newCode(); P = {}; G = null; newGame(); }
   if(G.board.some(col => col.some(t => !byId(t.id))) || !byId(G.finalId)){ const keepP = P; newGame(); P = keepP; }
@@ -541,7 +570,7 @@ function resumeTimers(){
   if(ph === "roundend") return void setTimeout(startRound2, 1500);
   if(ph === "clue" && !G.buzzOpen && !G.winner) return void setTimeout(openBuzzers, 1500);
   const fn = {buzz: nobody, answer: () => submitGuess(G.phase === "ddclue" ? G.picker : G.winner, ""), pause: openBuzzers,
-    next: backToBoard,
+    next: backToBoard, solo: () => { const q = curQ(); if(q) endClue(q, false, true); },
     wager: () => ph === "dd" ? lockDD(1000) : finalClue(), final: finalReveal, winner: finish}[k];
   if(fn){ deadline(left, k, fn); G.dlLen = len; commit(); }
 }
@@ -613,7 +642,7 @@ function buildBoard(round, usedIds){
   return board;
 }
 function newGame(){
-  const settings = Object.assign({read: true, dj: true, pace: "normal", voice: (() => { try{ return localStorage.getItem("nnj-voice") || ""; }catch(e){ return ""; } })()}, G && G.settings ? G.settings : {});
+  const settings = Object.assign({read: true, dj: true, pace: "normal", mode: "phones", voice: (() => { try{ return localStorage.getItem("nnj-voice") || ""; }catch(e){ return ""; } })()}, G && G.settings ? G.settings : {});
   const usedIds = new Set(), board = buildBoard(1, usedIds);
   const fq = shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id) && !played.has(q.id)))[0] || shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id)))[0];
   usedIds.add(fq.id);
@@ -634,10 +663,10 @@ function broadcast(){
     const m = stateMsg();
     for(const c of conns){ try{ if(c.open) c.send(m); }catch(e){} }
     relayPub("/s", m, true);
-    try{ localStorage.setItem("nnj-host8", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
+    try{ localStorage.setItem("nnj-host9", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
   }, 10);
 }
-function commit(){ G.at = Date.now(); render(); broadcast(); }
+function commit(){ G.at = Date.now(); render(); broadcast(); if(newBuild) setTimeout(applyUpdate, 1500); }
 function connOf(pid){ for(const c of conns) if(c.pid === pid && c.open) return c; return null; }
 function relayPub(sub, m, retain){ const s = JSON.stringify(m); for(const c of relayClients) if(c.connected){ try{ c.publish(TOPIC() + sub, s, {qos: 0, retain: !!retain}); }catch(e){} } }
 function sendTo(pid, m){ const c = connOf(pid); if(c){ try{ c.send(m); return; }catch(e){} } relayPub("/p/" + pid, m); }
@@ -655,7 +684,7 @@ function hostRelays(){
   }
   setInterval(() => { if(G) relayPub("/s", {type: "pong"}); }, 4000);   // heartbeat so phones know the relay is alive
 }
-function relaySubscribe(){ for(const c of relayClients) if(c.connected && c._sub !== CODE){ if(c._sub) try{ c.unsubscribe("stjeezy/v8/" + c._sub + "/h"); }catch(e){} c.subscribe(TOPIC() + "/h"); c._sub = CODE; } }
+function relaySubscribe(){ for(const c of relayClients) if(c.connected && c._sub !== CODE){ if(c._sub) try{ c.unsubscribe("stjeezy/v9/" + c._sub + "/h"); }catch(e){} c.subscribe(TOPIC() + "/h"); c._sub = CODE; } }
 const relayCount = () => relayClients.filter(c => c.connected).length;
 const inGame = id => id in G.scores && P[id];
 
@@ -672,7 +701,7 @@ function handle(c, m){
   const pid = String(m.pid || "").slice(0,24); if(!pid) return;
   if(m.type === "ping"){ if(c) try{ c.send({type:"pong"}); }catch(e){} return; }
   if(m.type === "hello"){
-    if(pid === me) return;
+    if(pid === me || (isManual() && !P[pid])) return;
     if(c) c.pid = pid;
     removed.delete(pid);
     if(!P[pid]){ const want = COLORS.includes(m.color) && colorFree(m.color, pid) ? m.color : COLORS.find(x => colorFree(x, pid)) || COLORS[Object.keys(P).length % COLORS.length]; P[pid] = {color: want}; }
@@ -767,11 +796,45 @@ function speak(text, done){
 }
 function hush(){ try{ speechSynthesis.cancel(); }catch(e){} clearTimeout(readTimer); }
 
+/* ===== laptop-only mode: no phones, the host clicks who got it ===== */
+const isManual = () => !!(G && G.settings && G.settings.mode === "manual");
+function mStartDD(who, amt){ if(G.phase !== "mdd" || !P[who]) return; G.picker = who; G.ddWager = clampWager(who, amt); G.phase = "mclue"; G.mdd = true; commit(); speak(G.q.q); }
+function mReveal(q){ hush(); G.phase = "reveal"; G.flipped = true; G.ans = q.a; G.ansX = q.x; deadline(0); commit(); }
+function mAward(pid, right){
+  if(G.phase !== "mclue" || !P[pid] || G.locked.includes(pid)) return;
+  if(G.mdd && pid !== G.picker) return;
+  const q = curQ(), v = G.mdd ? G.ddWager : vals()[G.cur.r];
+  G.guesses.push({pid, text: "", verdict: right ? "right" : "wrong"});
+  if(right){ G.scores[pid] = (G.scores[pid]||0) + v; G.lastGuess = {pid, v, right: true, prevPicker: G.picker}; G.picker = pid; G.lastRight = pid; SFX.right(); return mReveal(q); }
+  G.scores[pid] = (G.scores[pid]||0) - v; G.lastGuess = {pid, v, right: false}; G.locked.push(pid); SFX.wrong();
+  if(G.mdd || players().every(x => G.locked.includes(x))){ G.lastRight = null; return mReveal(q); }
+  commit();
+}
+function mFlip(){ if(G.phase !== "mclue") return; const q = curQ(); hush(); G.flipped = true; G.ans = q.a; G.ansX = q.x; SFX.flip(); commit(); }
+function mNobody(){ if(G.phase !== "mclue") return; const q = curQ(); G.lastRight = null; SFX.times(); mReveal(q); }
+function mNext(){ if(G.phase !== "mclue") return; G.lastRight = null; backToBoard(); }
+function mAddPlayer(name){
+  name = String(name || "").trim(); if(!name) return;
+  const id = "m" + Math.random().toString(36).slice(2, 8);
+  P[id] = {name: uniqueName(name, id), color: COLORS.find(c => colorFree(c, id)) || COLORS[Object.keys(P).length % COLORS.length], manual: true};
+  G.scores[id] = 0; commit();
+}
+function setMode(mode){
+  if(G.phase !== "lobby") return;
+  G.settings.mode = mode;
+  if(mode === "phones") for(const [id, p] of Object.entries(P)) if(p.manual){ delete P[id]; delete G.scores[id]; }
+  commit();
+}
 function openTile(c, r){
   const t = G.board[c][r], q = byId(t.id); if(!q) return;
   played.add(t.id); hush();
   G.cur = {c, r}; G.q = {q: q.q, s: q.s, cat: G.cats[c], v: vals()[r]}; G.ans = null; G.ansX = ""; G.winner = null; G.locked = []; G.buzzOpen = false; G.flipped = false;
   G.token = Date.now(); G.lastRight = null; G.guesses = []; G.vote = null; G.lastGuess = null; bz = null;
+  if(isManual()){
+    G.mdd = false;
+    if(t.dd){ G.phase = "mdd"; G.ddWho = inGame(G.picker) ? G.picker : players()[0]; G.ddWager = 0; SFX.dd(); deadline(0); commit(); return; }
+    G.phase = "mclue"; deadline(0); commit(); SFX.flip(); speak(q.q); return;
+  }
   if(t.dd){ G.phase = "dd"; G.ddWager = 0; SFX.dd(); deadline(WAGER_MS, "wager", () => lockDD(Math.min(1000, Math.max(G.scores[G.picker]||0, 1000)))); commit(); return; }
   G.phase = "clue"; G.reading = true; deadline(0); commit(); SFX.flip();
   const tok = G.token, go = () => { if(G.phase === "clue" && G.token === tok && !G.buzzOpen && !G.winner) openBuzzers(); };
@@ -808,7 +871,7 @@ function applyWrong(pid, v, answerShown){
   SFX.wrong();
   if(G.phase === "ddclue" || answerShown){ G.lastRight = null; return endClue(q, false, true); }
   G.locked.push(pid); G.winner = null; G.buzzOpen = false;
-  if(!players().some(x => !G.locked.includes(x))){ G.lastRight = null; return endClue(q, false, true); }
+  if(!players().some(x => !G.locked.includes(x))){ G.lastRight = null; G.token = Date.now(); deadline(2500, "solo", () => endClue(q, false, true)); commit(); return; }   // nobody left: show WRONG first
   G.token = Date.now(); deadline(1600, "pause", openBuzzers); commit();   // short pause so everyone sees the miss, then buzzers reopen
 }
 /* the host rules on every typed answer; the matcher only suggests */
@@ -837,7 +900,7 @@ function overrule(right){
     if(lg.prevPicker && P[lg.prevPicker]) G.picker = lg.prevPicker;
     SFX.wrong();
   }
-  deadline(6000, "next", backToBoard); commit();
+  if(isManual()) deadline(0); else deadline(6000, "next", backToBoard); commit();
 }
 function endClue(q, right, silent){
   hush(); G.phase = "reveal"; G.flipped = true; G.ans = q.a; G.ansX = q.x; G.buzzOpen = false; G.winner = null; G.vote = null;
@@ -870,7 +933,7 @@ function toFinal(){
   hush();
   const f = byId(G.finalId); Object.values(P).forEach(p => { delete p.fw; delete p.fa; });
   G.phase = "fcat"; G.cur = null; G.q = null; G.winner = null; G.buzzOpen = false; G.fDone = {}; G.fvote = null; G.fBase = {}; G.fin = {cat: G.cats[f.c], s: f.s};
-  G.token = Date.now(); deadline(FWAGER_MS, "wager", finalClue); commit();
+  G.token = Date.now(); deadline(isManual() ? 0 : FWAGER_MS, "wager", finalClue); commit();
   speak("Final Jeopardy. The category is " + G.fin.cat + ". Make your wagers.");
 }
 const contenders = () => players().filter(id => (G.scores[id]||0) > 0);
@@ -883,11 +946,12 @@ function finalReveal(){
   if(G.phase !== "fclue") return; hush();
   const f = byId(G.finalId); G.phase = "freveal"; G.token = Date.now(); G.fin = {cat: G.cats[f.c], s: f.s, q: f.q, a: f.a, x: f.x};
   G.fHint = {}; G.fDone = {};
+  if(isManual()){ for(const id of players()){ G.fBase[id] = G.scores[id] || 0; if(P[id].fw == null) P[id].fw = 0; } deadline(0); commit(); return; }
   for(const id of players()){ G.fBase[id] = G.scores[id] || 0; const txt = (P[id].fa || "").trim(); G.fHint[id] = txt ? judgeFor(txt, f, DF, KNOWN).verdict : "wrong"; setFinal(id, G.fHint[id] !== "wrong"); }
   deadline(10000, "winner", finish); commit();
 }
 function setFinal(id, right){ const w = P[id] && P[id].fw != null ? P[id].fw : 0; G.scores[id] = (G.fBase[id] || 0) + (right ? w : -w); G.fDone[id] = right ? "right" : "wrong"; }
-function fJudge(id, right){ if(G.phase !== "freveal" || !P[id]) return; setFinal(id, right); right ? SFX.right() : SFX.wrong(); deadline(10000, "winner", finish); commit(); }
+function fJudge(id, right){ if(G.phase !== "freveal" || !P[id]) return; setFinal(id, right); right ? SFX.right() : SFX.wrong(); if(!isManual()) deadline(10000, "winner", finish); commit(); }
 function fAcceptHints(){ if(G.phase !== "freveal") return; for(const id of players()) if(!G.fDone[id] && G.fHint[id] !== "maybe") setFinal(id, G.fHint[id] === "right"); commit(); }
 const fAllJudged = () => players().every(id => G.fDone[id]);
 function finish(){ if(G.phase !== "freveal" || !fAllJudged()) return; deadline(0); G.phase = "over"; SFX.fill(); commit();
@@ -1109,7 +1173,15 @@ function renderHostBar(){
   const bar = $("tv-ctrl"); if(!isHost) return;
   const ph = G.phase, k = x => `<kbd>${x}</kbd>`; let b = "";
   const n = players().length, lg = G.lastGuess;
-  if(ph === "lobby") b = `<span class="muted">Anyone can tap Start on their phone.</span><button class="btn primary" id="hb-start" type="button" ${n ? "" : "disabled"}>${n ? "Start the game" : "Waiting for players"}${k("Space")}</button>`;
+  const man = isManual();
+  if(ph === "lobby" && man) b = `<span class="muted">${n ? "Everyone added?" : "Add at least one player."}</span><button class="btn primary" id="hb-start" type="button" ${n ? "" : "disabled"}>Start the game${k("Space")}</button>`;
+  else if(ph === "board" && man) b = `<span class="muted">${esc(nameOf(G.picker))} picks. Click their tile.</span>`;
+  else if(ph === "mclue") b = `<span class="muted">${G.flipped ? "Click ✓ if someone had it, or move on." : "Click ✓ or ✗ next to whoever answers."}</span>${G.flipped ? `<button class="btn primary" id="hb-mnext" type="button">Next${k("Space")}</button>` : `<button class="btn primary" id="hb-mflip" type="button">Show answer${k("Space")}</button><button class="btn" id="hb-mnobody" type="button">Nobody got it${k("N")}</button>`}`;
+  else if(ph === "mdd") b = `<span class="muted">Pick who's playing, type the wager, then show the clue.</span>`;
+  else if(ph === "fcat" && man) b = `<span class="muted">Type each wager, then</span><button class="btn primary" id="hb-fclue" type="button">Show the clue${k("Space")}</button>`;
+  else if(ph === "fclue" && man) b = `<button class="btn primary" id="hb-frev" type="button">Show the answer${k("Space")}</button>`;
+  else if(ph === "freveal" && man) b = `<span class="muted">Mark each player Right or Wrong.</span><button class="btn primary" id="hb-finish" type="button" ${fAllJudged() ? "" : "disabled"}>Show the winner${k("Space")}</button>`;
+  else if(ph === "lobby") b = `<span class="muted">Anyone can tap Start on their phone.</span><button class="btn primary" id="hb-start" type="button" ${n ? "" : "disabled"}>${n ? "Start the game" : "Waiting for players"}${k("Space")}</button>`;
   else if(ph === "board") b = `<span class="muted">${esc(nameOf(G.picker))} picks on their phone. You can also click a tile.</span>`;
   else if(ph === "clue" && !G.winner) b = `${G.buzzOpen ? "" : `<button class="btn" id="hb-open" type="button">Open buzzers${k("B")}</button>`}<button class="btn" id="hb-nobody" type="button">Nobody knows${k("N")}</button>${lg && !lg.right ? `<button class="btn good" id="hb-y" type="button">Actually, count ${esc(nameOf(lg.pid))}'s answer${k("Y")}</button>` : ""}`;
   else if(ph === "clue" || ph === "ddclue") b = `<span class="muted">${esc(nameOf(ph === "clue" ? G.winner : G.picker))} is typing…</span><button class="btn" id="hb-nobody" type="button">Time's up${k("N")}</button>`;
@@ -1126,14 +1198,15 @@ function renderHostBar(){
   on("hb-y", () => overrule(true)); on("hb-n", () => overrule(false)); on("hb-next", backToBoard);
   on("hb-ddauto", () => lockDD(1000));
   on("hb-hints", fAllHints = () => fAcceptHints()); on("hb-fclue", finalClue); on("hb-frev", finalReveal); on("hb-finish", finish); on("hb-again", () => { newGame(); commit(); });
+  on("hb-mflip", mFlip); on("hb-mnext", mNext); on("hb-mnobody", mNobody);
   on("hb-menu", openMenu);
 }
 function hostKey(e){
   if(!isHost || !G || e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey || e.altKey) return;
   if(!$("sheet").classList.contains("hidden")){ if(e.key === "Escape") closeMenu(); return; }
   const k = e.key.toLowerCase(), click = id => { const el = $(id); if(el && !el.disabled){ e.preventDefault(); el.click(); return true; } return false; };
-  if(k === " " || k === "enter"){ click("hb-start") || click("hb-next") || click("hb-fclue") || click("hb-frev") || click("hb-finish"); }
-  else if(k === "b") click("hb-open"); else if(k === "n") click("hb-nobody");
+  if(k === " " || k === "enter"){ click("hb-start") || click("hb-next") || click("hb-mflip") || click("hb-mnext") || click("hb-fclue") || click("hb-frev") || click("hb-finish"); }
+  else if(k === "b") click("hb-open"); else if(k === "n"){ click("hb-nobody") || click("hb-mnobody"); }
   else if(k === "a") click("hb-hints");
   else if(k === "y") click("hb-y"); else if(k === "x") click("hb-n"); else if(k === "m") click("hb-menu");
 }
@@ -1145,7 +1218,7 @@ const clueLen = s => (s || "").length > 120 ? "xlong" : (s || "").length > 75 ? 
 const hintTag = v => v === "right" ? `<span class="hint right">Looks right</span>` : v === "maybe" ? `<span class="hint maybe">Close. Your call</span>` : `<span class="hint wrong">Doesn't match</span>`;
 function renderTV(){
   const ph = G.phase, url = joinURL(), shortUrl = (location.host + location.pathname).replace(/\/index\.html$/, "/").replace(/\/$/, "");
-  $("tv-join").innerHTML = ph === "lobby" ? "" : `<span>Join on your phone<br><b>${esc(shortUrl)}</b></span><span class="codechip">${esc(CODE)}</span><span class="qr">${qrSVG(url, 3)}</span>`;
+  $("tv-join").innerHTML = ph === "lobby" || isManual() ? "" : `<span>Join on your phone<br><b>${esc(shortUrl)}</b></span><span class="codechip">${esc(CODE)}</span><span class="qr">${qrSVG(url, 3)}</span>`;
   const net = $("tv-net"), nt = G.net === "open" ? "" : G.net === "reclaiming" ? "Reopening your room so phones can reconnect…" : G.net === "trouble" ? "Network trouble. Retrying…" : G.net === "reconnecting" ? "Reconnecting…" : "Opening the room…";
   const shown = nt && !(relayCount() && G.net !== "trouble") ? nt : (G.net !== "open" && !relayCount() ? nt : "");
   net.textContent = shown; net.classList.toggle("hidden", !shown);
@@ -1153,19 +1226,31 @@ function renderTV(){
   const bar = () => G.deadline ? `<div class="tbar tv"><i data-dl></i></div>` : "";
   let h = "";
   if(ph === "lobby"){
-    const chips = ids.map(id => `<span class="chip" style="--c:${colorOf(id)}">${esc(nameOf(id))}</span>`).join("") || `<span class="muted">Nobody yet</span>`;
-    h = `<div class="tv-lobby"><div style="display:flex;flex-direction:column;gap:2vh">
-        <p class="step">Grab your phone and go to</p><p class="url">${esc(shortUrl)}</p>
-        <p class="step">Room code</p><p class="bigcode">${esc(CODE)}</p>
+    const man = isManual();
+    const chips = ids.map(id => `<span class="chip" style="--c:${colorOf(id)}">${esc(nameOf(id))}${man ? ` <button class="chipx" type="button" data-mrm="${id}" aria-label="Remove ${esc(nameOf(id))}">✕</button>` : ""}</span>`).join("") || `<span class="muted">Nobody yet</span>`;
+    const left = man
+      ? `<p class="step">Laptop only</p><p class="url" style="color:var(--mute)">No phones needed. Add everyone playing, then start. You click who got each answer.</p>
+         <p class="step">Players</p><div class="row"><input id="m-addname" class="txt-in" type="text" maxlength="16" autocomplete="off" placeholder="Type a name, press Enter" style="max-width:440px"><button class="btn primary" id="m-add" type="button">Add</button></div>`
+      : `<p class="step">Grab your phone and go to</p><p class="url">${esc(shortUrl)}</p><p class="step">Room code</p><p class="bigcode">${esc(CODE)}</p>`;
+    h = `<div class="tv-lobby"><div style="display:flex;flex-direction:column;gap:2vh">${left}
         <div class="chips" style="justify-content:flex-start">${chips}</div></div>
-      <div style="display:flex;flex-direction:column;gap:2vh;align-items:center"><div class="bigqr">${qrSVG(url, 6)}</div><p class="muted" style="margin:0;font-size:clamp(14px,1.3vw,22px)">Or scan to join</p>
-      <div class="settings"><label><input type="checkbox" id="set-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud.</b> The laptop reads each clue, and buzzers open when it finishes.</span></label>
+      <div style="display:flex;flex-direction:column;gap:2vh;align-items:center">${man ? "" : `<div class="bigqr">${qrSVG(url, 6)}</div><p class="muted" style="margin:0;font-size:clamp(14px,1.3vw,22px)">Or scan to join</p>`}
+      <div class="settings"><div class="pace"><b>How people play</b><div class="seg"><button type="button" class="${man ? "" : "on"}" data-mode="phones">Phones buzz in</button><button type="button" class="${man ? "on" : ""}" data-mode="manual">Laptop only</button></div></div><label><input type="checkbox" id="set-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud.</b> The laptop reads each clue${G.settings.mode === "manual" ? "" : ", and buzzers open when it finishes"}.</span></label>
       <label><input type="checkbox" id="set-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy.</b> A second board, $400 to $2,000, with two Daily Doubles.</span></label>
       <div class="pace"><b>Reader voice</b>${voiceSelect("set-voice")}</div>
-      <div class="pace"><b>Pace</b><div class="seg">${Object.entries(PACES).map(([k, p]) => `<button type="button" class="${G.settings.pace === k ? "on" : ""}" data-pace="${k}">${p.label}</button>`).join("")}</div><span class="muted">${esc((PACES[G.settings.pace] || PACES.normal).note)}</span></div>
-      <span class="muted" style="font-size:14px">Buzz in, then type your answer. Spelling doesn't have to be perfect, and the game judges it. Fix any bad call from the Players menu (M). Questions from ${esc(G.src)}.</span></div></div></div>`;
+      ${isManual() ? "" : `<div class="pace"><b>Pace</b><div class="seg">${Object.entries(PACES).map(([k, p]) => `<button type="button" class="${G.settings.pace === k ? "on" : ""}" data-pace="${k}">${p.label}</button>`).join("")}</div><span class="muted">${esc((PACES[G.settings.pace] || PACES.normal).note)}</span></div>`}
+      <span class="muted" style="font-size:14px">${isManual() ? "Players call out answers. Click ✓ or ✗ next to whoever answered. Fix any score from the Players menu (M). Questions from " + esc(G.src) + ".</span>" : `Buzz in, then type your answer. Spelling doesn't have to be perfect, and the game judges it. Fix any bad call from the Players menu (M). Questions from ${esc(G.src)}.</span>`}</div></div></div>`;
   } else if(ph === "board"){
     h = `<p class="tv-banner">${nm(G.picker)} picks${G.round === 2 ? " · Double Jeopardy" : ""}</p>${boardHTML(true)}${bar()}`;
+  } else if(ph === "mdd"){
+    const who = G.ddWho, mx = Math.max(G.scores[who]||0, G.round === 2 ? 2000 : 1000);
+    h = `<div class="splash dd${lastStage !== "mdd"+G.token ? " enter" : ""}" style="flex:none"><p class="who">DAILY DOUBLE</p><p class="meta" style="color:#ffe">${esc(G.q.cat)}</p></div>
+      <p class="tv-banner">Who's playing it?</p><div class="mgrid">${ids.map(id => `<button type="button" class="mpick${who === id ? " on" : ""}" data-ddwho="${id}" style="--c:${colorOf(id)}"><b>${esc(nameOf(id))}</b><span>${money(G.scores[id]||0)}</span></button>`).join("")}</div>
+      <div class="row" style="justify-content:center"><label class="tv-banner" for="m-ddw" style="font-size:clamp(18px,1.8vw,30px)">Wager</label><input id="m-ddw" class="big-in" type="number" inputmode="numeric" step="100" min="5" max="${mx}" value="${Math.min(1000, mx)}" style="max-width:240px"><button class="btn primary big" id="m-ddgo" type="button">Show the clue <kbd>Enter</kbd></button></div><p class="meta">Up to ${money(mx)}</p>`;
+  } else if(ph === "mclue" && G.q){
+    const vis = G.mdd ? [G.picker] : ids, v = G.mdd ? G.ddWager : G.q.v;
+    h = `<div class="tv-clue${lastStage.startsWith("q"+(G.cur?G.cur.c+"-"+G.cur.r:"")) ? "" : " enter"}"><div class="meta">${esc(G.q.cat)} · <b>${G.mdd ? "Daily Double " + money(G.ddWager) : "$" + G.q.v}</b></div><p class="clue ${clueLen(G.q.q)}">${esc(G.q.q)}</p>${G.flipped && G.ans ? `<p class="ans${lastStage.endsWith("|f") ? "" : " enter"}">${esc(G.ans)}${G.ansX ? `<small>also accept: ${esc(G.ansX)}</small>` : ""}</p>` : ""}</div>
+      <div class="mgrid">${vis.map(id => { const out = G.locked.includes(id); return `<div class="mcard${out ? " out" : ""}" style="--c:${colorOf(id)}"><b>${esc(nameOf(id))}</b>${out ? `<span class="muted">missed</span>` : `<div class="row"><button class="btn good" type="button" data-maw="${id}" data-ok="1" title="Right, +$${v}">✓</button><button class="btn bad" type="button" data-maw="${id}" data-ok="0" title="Wrong, -$${v}">✗</button></div>`}</div>`; }).join("")}</div>`;
   } else if(ph === "dd"){
     h = `<div class="splash dd${lastStage !== "dd"+G.token ? " enter" : ""}"><p class="who">DAILY DOUBLE</p><p class="meta" style="color:#ffe">${esc(G.q.cat)} · ${nm(G.picker)} is wagering</p></div>${bar()}`;
   } else if((ph === "clue" || ph === "ddclue" || ph === "reveal" || ph === "vote") && G.q){
@@ -1185,19 +1270,35 @@ function renderTV(){
       <p class="tv-status${cls}">${st}</p>${ph === "vote" ? `<div class="judgebox"><p class="said">“${esc(G.vote.text)}”</p>${hintTag(G.vote.hint)}<div class="row" style="justify-content:center"><button class="btn good big" id="j-y" type="button">Right <kbd>Y</kbd></button><button class="btn bad big" id="j-n" type="button">Wrong <kbd>X</kbd></button></div></div>` : ""}${bar()}${misses.length > 1 || (misses.length && G.buzzOpen) ? `<p class="meta" style="text-transform:none">Missed: ${misses.map(g => `${nm(g.pid)} “${esc(g.text || "no answer")}”`).join(" · ")}</p>` : ""}`;
   } else if(ph === "roundend"){
     h = `<div class="splash dj${lastStage !== "roundend" ? " enter" : ""}"><p class="meta">Round one is done</p><p class="who">DOUBLE JEOPARDY</p><p class="meta">Values double · two Daily Doubles · lowest score picks first</p></div>`;
+  } else if(ph === "fcat" && isManual()){
+    const c = contenders();
+    h = `<div class="splash dj${lastStage !== "fcat" ? " enter" : ""}" style="flex:none"><p class="meta">Final Jeopardy</p><p class="who" style="font-size:clamp(40px,6vw,110px)">${esc(G.fin && G.fin.cat)}</p></div>
+      ${c.length ? `<p class="tv-banner">Type each wager</p><div class="mgrid">${c.map(id => `<label class="mcard" style="--c:${colorOf(id)}"><b>${esc(nameOf(id))}</b><span class="muted">up to ${money(G.scores[id])}</span><input class="big-in" type="number" inputmode="numeric" step="100" min="0" max="${G.scores[id]}" data-mw="${id}" value="${P[id].fw ?? 0}" style="font-size:24px!important"></label>`).join("")}</div>` : `<p class="tv-banner">Nobody has money to wager. Everyone can still answer.</p>`}`;
   } else if(ph === "fcat"){
     const c = contenders();
     h = `<div class="splash dj${lastStage !== "fcat" ? " enter" : ""}"><p class="meta">Final Jeopardy</p><p class="who" style="font-size:clamp(48px,7vw,130px)">${esc(G.fin && G.fin.cat)}</p><p class="meta">Lock in your wager on your phone</p><p class="meta">${c.length ? c.map(id => `${nm(id)} ${P[id].fwIn ? "✓" : "…"}`).join(" · ") : "Nobody has money to wager. Everyone can still answer."}</p></div>${bar()}`;
   } else if(ph === "fclue"){
-    h = `<div class="tv-clue${lastStage !== "fclue" ? " enter" : ""}"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue ${clueLen(G.fin.q)}">${esc(G.fin.q)}</p></div><p class="tv-status"><span data-secs></span> seconds · ${ids.map(id => `${nm(id)} ${P[id].faIn ? "✓" : "…"}`).join(" · ")}</p>${bar()}`;
+    h = `<div class="tv-clue${lastStage !== "fclue" ? " enter" : ""}"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue ${clueLen(G.fin.q)}">${esc(G.fin.q)}</p></div><p class="tv-status"><span data-secs></span> seconds${isManual() ? "" : " · " + ids.map(id => `${nm(id)} ${P[id].faIn ? "✓" : "…"}`).join(" · ")}</p>${bar()}`;
   } else if(ph === "freveal" || ph === "over"){
     h = `<div class="tv-clue" style="flex:none;padding:2.5vh 3vw"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue" style="font-size:clamp(22px,2.6vw,48px)">${esc(G.fin.q)}</p><p class="ans${lastStage !== ph ? " enter" : ""}">${esc(G.fin.a)}${G.fin.x ? `<small>also accept: ${esc(G.fin.x)}</small>` : ""}</p></div>
       <div class="flist">${ids.map(id => { const p = P[id], d = G.fDone[id], hn = (G.fHint || {})[id];
-        return `<div class="frow" style="--c:${colorOf(id)}"><span class="nm">${esc(nameOf(id))}</span><span class="fa">${esc((p.fa||"").trim() || "no answer")}</span>${ph === "freveal" && !d ? hintTag(hn) : ""}<span class="muted">${money(p.fw||0)}</span>${d ? `<b class="${d}">${d === "right" ? "✓" : "✗"}</b>` : ""}${ph === "freveal" ? `<button class="btn good sm${d === "right" ? " on" : ""}" data-fj="${id}" data-r="1" type="button">Right</button><button class="btn bad sm${d === "wrong" ? " on" : ""}" data-fj="${id}" data-r="0" type="button">Wrong</button>` : ""}</div>`; }).join("")}</div>`;
+        return `<div class="frow" style="--c:${colorOf(id)}"><span class="nm">${esc(nameOf(id))}</span><span class="fa">${isManual() ? "" : esc((p.fa||"").trim() || "no answer")}</span>${ph === "freveal" && !d && !isManual() ? hintTag(hn) : ""}<span class="muted">${money(p.fw||0)}</span>${d ? `<b class="${d}">${d === "right" ? "✓" : "✗"}</b>` : ""}${ph === "freveal" ? `<button class="btn good sm${d === "right" ? " on" : ""}" data-fj="${id}" data-r="1" type="button">Right</button><button class="btn bad sm${d === "wrong" ? " on" : ""}" data-fj="${id}" data-r="0" type="button">Wrong</button>` : ""}</div>`; }).join("")}</div>`;
     if(ph === "over"){ const top = ids.slice().sort((a,b) => G.scores[b] - G.scores[a])[0]; if(top) h += `<p class="who" style="color:${colorOf(top)};font-size:clamp(48px,7vw,130px)">${esc(nameOf(top))} WINS</p>`; }
   }
+  // keep whatever the host is typing (names, wagers) across redraws
+  const ae = document.activeElement, keepId = ae && ae.closest && ae.closest("#tv-main") && ae.tagName === "INPUT" ? (ae.id ? "#" + ae.id : ae.dataset.mw ? `[data-mw="${ae.dataset.mw}"]` : "") : "", keepVal = keepId ? ae.value : null;
+  const typed = {}; document.querySelectorAll("#tv-main input[type=text], #tv-main input[type=number]").forEach(i => { const k = i.id ? "#" + i.id : i.dataset.mw ? `[data-mw="${i.dataset.mw}"]` : ""; if(k) typed[k] = i.value; });
   $("tv-main").innerHTML = h;
-  lastStage = ph === "dd" ? "dd"+G.token : (ph === "clue" || ph === "ddclue" || ph === "reveal" || ph === "vote") ? "q"+(G.cur?G.cur.c+"-"+G.cur.r:"") + ((ph === "reveal" || ph === "vote") ? "|f" : "") : ph;
+  for(const [k, v] of Object.entries(typed)){ const el = document.querySelector("#tv-main " + k); if(el && k !== "#m-ddw") el.value = v; }
+  if(keepId){ const el = document.querySelector("#tv-main " + keepId); if(el){ el.focus(); if(keepVal != null) el.value = keepVal; } }
+  lastStage = ph === "dd" ? "dd"+G.token : ph === "mdd" ? "mdd"+G.token : (ph === "clue" || ph === "ddclue" || ph === "reveal" || ph === "vote" || ph === "mclue") ? "q"+(G.cur?G.cur.c+"-"+G.cur.r:"") + ((ph === "reveal" || ph === "vote" || (ph === "mclue" && G.flipped)) ? "|f" : "") : ph;
+  document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  const addIn = $("m-addname"); if(addIn){ const add = () => { const v = addIn.value; if(!v.trim()) return; addIn.value = ""; mAddPlayer(v); const n = $("m-addname"); if(n) n.focus(); }; $("m-add").onclick = add; addIn.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); add(); } }); if(ph === "lobby" && !ids.length) setTimeout(() => { const n = $("m-addname"); if(n && document.activeElement !== n) n.focus(); }, 50); }
+  document.querySelectorAll("[data-mrm]").forEach(b => b.onclick = () => { const id = b.dataset.mrm; delete P[id]; delete G.scores[id]; commit(); });
+  document.querySelectorAll("[data-ddwho]").forEach(b => b.onclick = () => { G.ddWho = b.dataset.ddwho; commit(); });
+  const ddw = $("m-ddw"); if(ddw){ const go = () => mStartDD(G.ddWho, +ddw.value || 0); $("m-ddgo").onclick = go; ddw.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); go(); } }); }
+  document.querySelectorAll("[data-maw]").forEach(b => b.onclick = () => mAward(b.dataset.maw, b.dataset.ok === "1"));
+  document.querySelectorAll("[data-mw]").forEach(inp => { const save = () => { const id = inp.dataset.mw; if(!P[id]) return; P[id].fw = Math.min(Math.max(Math.round(+inp.value || 0), 0), Math.max(G.scores[id]||0, 0)); broadcast(); }; inp.addEventListener("input", save); inp.addEventListener("change", save); });
   document.querySelectorAll("#tv-main .tile:not([disabled])").forEach(b => b.onclick = () => { if(G.phase === "board"){ const t = G.board[+b.dataset.c][+b.dataset.r]; if(t && !t.used) openTile(+b.dataset.c, +b.dataset.r); } });
   document.querySelectorAll("[data-fj]").forEach(b => b.onclick = () => fJudge(b.dataset.fj, b.dataset.r === "1"));
   const jy = $("j-y"), jn = $("j-n"); if(jy) jy.onclick = () => resolveVote(true); if(jn) jn.onclick = () => resolveVote(false);
