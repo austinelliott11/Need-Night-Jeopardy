@@ -153,6 +153,18 @@ header.top .logo{font-size:22px}
 .chipx{background:none;border:0;color:var(--mute);font-size:15px;padding:0 0 0 4px;cursor:pointer}
 .hostans{background:#2a2310;border:1px solid #5a4a26;border-radius:8px;padding:6px 12px;font-size:clamp(14px,1.3vw,22px);color:#f3e2b5;margin-right:auto;max-width:60%}
 .hostans b{color:var(--brass)}
+.r-ans{background:#2a2310;border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center}
+.r-ans b{color:var(--brass);font-size:26px;line-height:1.1} .r-ans small{color:var(--mute);font-size:14px}
+.r-row .btn.r-big{font-size:26px;padding:10px 18px;min-width:64px}
+.r-row.out{opacity:.45}
+.r-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.r-pick{background:#101a21;border:1px solid var(--line);border-top:5px solid var(--c);border-radius:10px;padding:10px;color:var(--ink);display:flex;flex-direction:column;gap:2px;font-family:var(--body)}
+.r-pick b{color:var(--c)} .r-pick.on{outline:3px solid #fff}
+.r-adj{display:flex;gap:4px;margin-top:4px} .r-adj button{flex:1;background:#0b1116;color:var(--mute);border:1px solid #3a5263;border-radius:6px;font-size:12px;padding:4px 0}
+#r-conn{margin:0;text-align:center;font-size:14px;color:#ffd27a;background:#3a2c12;border-radius:8px;padding:6px}
+#remote .frow{flex-wrap:nowrap}
+#sheet .bigqr{background:#fff;padding:14px;border-radius:14px;line-height:0}
+#sheet .bigqr svg{width:min(60vh,280px);height:auto;display:block}
 /* answer box + timers */
 #ansbox{background:var(--board);border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
 #ans-clue{margin:0;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:17px;line-height:1.15;text-align:center}
@@ -279,6 +291,13 @@ header.top .logo{font-size:22px}
   <div id="tv-scores"></div>
 </div>
 
+<div class="wrap hidden" id="remote">
+  <header class="top"><h1 class="logo">HOST <span>REMOTE</span></h1><span class="codechip" id="r-code"></span></header>
+  <p id="r-conn" class="hidden"></p>
+  <div id="r-main"></div>
+  <div class="scores" id="r-scores"></div>
+</div>
+
 <div class="sheet hidden" id="sheet"><div class="inner" id="sheet-inner"></div></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -294,13 +313,18 @@ const BUILTIN = [["C1-01",0,"Eragon",200,"Eragon's dragon is named for the color
 const BUILTIN_CATS = ["Fantasy & Sci-Fi Books","Star Wars","Video Games","Wilderness Survival","Anime","Deadliest Warrior & Animals"];
 const BASE = [200,400,600,800,1000];
 const COLORS = ["#ef5a4c","#ff9a3d","#f2cc4a","#b4e04c","#3fc46e","#2fd3c4","#4fb3ea","#6d84ff","#a86cf0","#f26cbf","#eef1ea","#c4915e"];   // red orange yellow lime green teal sky blue purple pink white tan
-const PREFIX = "nnj-live-v9-";
-const BUILD = "1793939357";
+const PREFIX = "nnj-live-v10-";
+const BUILD = "1793939867";
 /* Backup relay. Some WiFi (Airbnbs, hotels, mesh routers) blocks phones from talking straight to the laptop.
    When that happens, messages go through a public relay instead. Phones switch automatically. */
 const RELAYS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
-const TOPIC = () => "stjeezy/v9/" + CODE;
+const TOPIC = () => "stjeezy/v10/" + CODE;
 const RELAY_ONLY = /[?&]relay=1/.test(location.search);   // for testing the relay path
+/* host remote: the host's own phone shows the answers and the controls */
+const RQ = new URLSearchParams(location.search), REMOTE_CODE = (RQ.get("remote") || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4), REMOTE_K = RQ.get("k") || "";
+let isRemote = false, RANS = null;
+let REMOTE_KEY = (() => { try{ let k = localStorage.getItem("nnj-rkey"); if(!k){ k = Math.random().toString(36).slice(2, 12); localStorage.setItem("nnj-rkey", k); } return k; }catch(e){ return Math.random().toString(36).slice(2, 12); } })();
+const remotePids = new Set();
 let relayClients = [], relayLive = null, lastAt = 0;
 const BUZZ_WINDOW = 300;
 let BUZZ_MS = 10000, REBUZZ_MS = 7000, ANSWER_MS = 15000, DD_MS = 20000, VOTE_MS = 10000, PICK_MS = 30000, FINAL_MS = 30000, WAGER_MS = 25000, FWAGER_MS = 40000;
@@ -406,6 +430,7 @@ function applyUpdate(){
   const safe = !G || ["lobby", "board", "reveal", "over", "roundend"].includes(G.phase);
   if(!onLanding && !safe) return;   // never in the middle of a clue
   if(isHost && !onLanding){ try{ sessionStorage.setItem("nnj-autoresume", "1"); }catch(e){} location.replace(location.pathname + "?bv=" + newBuild); return; }
+  if(isRemote){ location.replace(location.pathname + "?remote=" + CODE + "&k=" + encodeURIComponent(REMOTE_K) + "&bv=" + newBuild); return; }
   if(!isHost && !onLanding && CODE){ location.replace(location.pathname + "?code=" + CODE + "&bv=" + newBuild); return; }
   const q = new URLSearchParams(location.search); q.set("bv", newBuild); location.replace(location.pathname + "?" + q.toString());
 }
@@ -437,8 +462,9 @@ const SFX = {
   if(code) $("code").value = code;
   try{ const n = localStorage.getItem("nnj-name"); if(n) $("name").value = n; }catch(e){}
   if(typeof Peer === "undefined"){ $("status").textContent = "Couldn't load the game's connection library. Check your internet and reload."; return; }
+  if(REMOTE_CODE && REMOTE_K){ setTimeout(startRemote, 0); return; }
   ["join-card","or","btn-host"].forEach(id => $(id).classList.remove("hidden"));
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host9") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host10") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ $("btn-host").textContent = "Resume hosting room " + saved.code; $("btn-new").classList.remove("hidden"); }
   $("status").textContent = code ? "Type your name and tap Join." : "Type your name, then join a room or host one.";
   // a phone that reloads mid-game (Safari does this in the background) rejoins on its own
@@ -457,7 +483,7 @@ document.addEventListener("visibilitychange", () => { if(document.visibilityStat
 
 /* ===== player networking ===== */
 let retryTimer = null, lastPong = 0, pingTimer = null, kicked = false;
-function setConn(t, force){ if(t && !force && relayAlive()) t = ""; const b = $("conn"); b.textContent = t || ""; if(t){ const x = document.createElement("button"); x.type = "button"; x.className = "linkbtn"; x.dataset.leave = "1"; x.textContent = "Change room"; b.appendChild(x); wireLeave(); } b.classList.toggle("hidden", !t); }
+function setConn(t, force){ if(t && !force && relayAlive()) t = ""; const b = $(isRemote ? "r-conn" : "conn"); b.textContent = t || ""; if(t){ const x = document.createElement("button"); x.type = "button"; x.className = "linkbtn"; x.dataset.leave = "1"; x.textContent = "Change room"; b.appendChild(x); wireLeave(); } b.classList.toggle("hidden", !t); }
 const relayAlive = () => !isHost && !!relayLive && relayLive.connected && Date.now() - lastPong < 10000;
 function playerRelay(i){
   if(isHost || kicked || typeof mqtt === "undefined") return;
@@ -467,7 +493,7 @@ function playerRelay(i){
   const fail = setTimeout(() => { if(!gotIn){ try{ c.end(true); }catch(e){} if(relayLive === c) relayLive = null; playerRelay(i + 1); } }, 9000);
   c.on("connect", () => {
     gotIn = true; clearTimeout(fail); relayLive = c;
-    c.subscribe([TOPIC() + "/s", TOPIC() + "/p/" + me], () => { if(!(conn && conn.open)) send({type: "hello", name: myName, color: myColorPref()}); });
+    c.subscribe(isRemote ? [TOPIC() + "/p/" + me] : [TOPIC() + "/s", TOPIC() + "/p/" + me], () => { if(!(conn && conn.open)) sayHello(); });
   });
   c.on("message", (topic, buf) => { if(relayLive !== c) return; let m; try{ m = JSON.parse(buf.toString()); }catch(e){ return; } onHost(m); });
   c.on("error", () => {});
@@ -505,7 +531,7 @@ function connect(fresh){
     if(conn){ const old = conn; conn = null; try{ old.close(); }catch(e){} }
     const c = pr.connect(PREFIX + CODE, { reliable: true });
     conn = c;
-    c.on("open", () => { if(conn !== c) return; attempts = 0; setConn("", true); lastPong = Date.now(); send({type:"hello", name: myName, color: myColorPref()}); });
+    c.on("open", () => { if(conn !== c) return; attempts = 0; setConn("", true); lastPong = Date.now(); sayHello(); });
     c.on("data", m => { if(conn === c) onHost(m); });
     c.on("close", () => { if(conn !== c) return; setConn("Connection lost. Reconnecting…"); retry(1500); });
     c.on("error", () => { if(conn !== c) return; retry(2000); });
@@ -522,6 +548,7 @@ setInterval(() => {
   if(Date.now() - lastAttempt > 7000){ setConn("Reconnecting…"); connect(true); }
 }, 2000);
 function retry(ms){ clearTimeout(retryTimer); if(kicked) return; retryTimer = setTimeout(() => connect(true), ms); }
+function sayHello(){ send(isRemote ? {type: "remote-hello", k: REMOTE_K} : {type: "hello", name: myName, color: myColorPref()}); }
 function send(m){
   m.pid = me;
   if(conn && conn.open){ try{ conn.send(m); return; }catch(e){} }
@@ -530,7 +557,9 @@ function send(m){
 function onHost(m){
   if(!m || typeof m !== "object") return;
   lastPong = Date.now();
-  if(m.type === "state"){ if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(newBuild) setTimeout(applyUpdate, 800); if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
+  if(m.type === "rstate"){ if(m.G && m.G.at && m.G.at < lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; G = m.G; P = m.P || {}; RANS = m.ans || null; render(); return; }
+  if(m.type === "rdenied"){ setConn("This remote link is out of date. Open the new one from the laptop.", true); return; }
+  if(m.type === "state"){ if(isRemote) return; if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(newBuild) setTimeout(applyUpdate, 800); if(!P[me] && !isRemote) send({type:"hello", name: myName, color: myColorPref()}); render(); }
   else if(m.type === "kicked"){ try{ localStorage.removeItem("nnj-joined"); }catch(e){} kicked = true; try{ relayLive && relayLive.end(true); }catch(e){} relayLive = null; const c = conn; conn = null; clearInterval(pingTimer); clearTimeout(retryTimer); try{ c && c.close(); }catch(e){} clearTimeout(retryTimer); setConn("The host removed you from this game. Reload the page to rejoin.", true); }
 }
 /* leave the room and go back to the start screen to enter a different code */
@@ -544,11 +573,105 @@ function wireLeave(){ document.querySelectorAll("[data-leave]").forEach(b => b.o
 /* every action goes through here, host or not */
 function act(m){ if(!isHost) send(m); }
 
+/* ===== host remote (the host's phone) ===== */
+async function startRemote(){
+  isRemote = true; isHost = false; CODE = REMOTE_CODE; myName = "Host remote";
+  $("landing").classList.add("hidden"); $("remote").classList.remove("hidden"); keepAwake();
+  $("r-code").textContent = CODE;
+  $("r-main").innerHTML = `<p class="msg">Connecting to room ${esc(CODE)}…</p><p class="muted" style="text-align:center">Keep the game open on the laptop.</p>`;
+  await loadIce(); if(!RELAY_ONLY) connect(); playerRelay(0);
+  clearInterval(pingTimer); pingTimer = setInterval(() => { if(conn && conn.open){ send({type: "ping"}); } else if(relayLive && relayLive.connected){ sayHello(); } }, 4000);
+}
+const rcmd = (cmd, a) => send({type: "rcmd", k: REMOTE_K, cmd, a: a || {}});
+function renderRemote(){
+  if(!G) return;
+  const ph = G.phase, ids = Object.keys(G.scores || {}).filter(id => P[id]), A = RANS;
+  const ansBox = () => A ? `<div class="r-ans"><span class="muted">Answer</span><b>${esc(A.a)}</b>${A.x ? `<small>also: ${esc(A.x)}</small>` : ""}</div>` : "";
+  const clue = q => q ? `<div class="cluebox"><div class="meta">${esc(G.q ? G.q.cat : "")}${G.q ? ` · <b>${G.mdd ? "Daily Double " + money(G.ddWager) : "$" + G.q.v}</b>` : ""}</div><p class="clue" style="font-size:clamp(20px,6vw,28px)">${esc(q)}</p></div>` : "";
+  let h = "";
+  if(G.settings && G.settings.mode !== "manual"){
+    h = `<p class="msg small">The laptop is in "Phones buzz in" mode, so the game judges answers itself.</p><p class="muted" style="text-align:center">Switch the lobby to Laptop only to use this remote.</p>`;
+  } else if(ph === "lobby"){
+    h = `<p class="msg small">You're the host</p>
+      <div class="ansrow"><input id="r-add" class="txt-in" type="text" maxlength="16" autocomplete="off" enterkeyhint="done" placeholder="Add a player"><button class="btn primary" id="r-addgo" type="button">Add</button></div>
+      <div class="flist">${ids.map(id => `<div class="frow" style="--c:${P[id].color}"><span class="nm">${esc(P[id].name)}</span><span class="fa"></span><button class="btn sm" data-rrm="${id}" type="button">Remove</button></div>`).join("") || `<p class="muted" style="text-align:center">No players yet</p>`}</div>
+      <button class="btn primary wide" id="r-start" type="button" ${ids.length ? "" : "disabled"}>Start the game</button>`;
+  } else if(ph === "board"){
+    h = `<p class="msg small">${nm(G.picker)} picks. Tap their tile.</p>${boardHTML(true)}`;
+  } else if(ph === "mdd"){
+    const who = G.ddWho, mx = Math.max(G.scores[who]||0, G.round === 2 ? 2000 : 1000);
+    h = `<div class="splash dd"><p class="who" style="font-size:44px">DAILY DOUBLE</p><p class="meta" style="color:#ffe">${esc(G.q.cat)}</p></div>${ansBox()}
+      <p class="msg small">Who's playing it?</p><div class="r-grid">${ids.map(id => `<button class="r-pick${who === id ? " on" : ""}" type="button" data-rdw="${id}" style="--c:${P[id].color}"><b>${esc(P[id].name)}</b><span>${money(G.scores[id]||0)}</span></button>`).join("")}</div>
+      <label class="muted" for="r-ddw" style="text-align:center">Wager, up to ${money(mx)}</label><input id="r-ddw" class="big-in" type="number" inputmode="numeric" pattern="[0-9]*" min="5" max="${mx}" step="100" value="${Math.min(1000, mx)}"><button class="btn primary wide" id="r-ddgo" type="button">Show the clue</button>`;
+  } else if(ph === "mclue"){
+    const vis = G.mdd ? [G.picker] : ids, v = G.mdd ? G.ddWager : G.q.v;
+    h = `${clue(G.q.q)}${ansBox()}
+      <div class="flist">${vis.map(id => { const out = G.locked.includes(id); return `<div class="frow r-row${out ? " out" : ""}" style="--c:${P[id].color}"><span class="nm">${esc(P[id].name)}</span><span class="fa muted">${money(G.scores[id]||0)}</span>${out ? `<span class="muted">missed</span>` : `<button class="btn good r-big" data-raw="${id}" data-ok="1" type="button">✓</button><button class="btn bad r-big" data-raw="${id}" data-ok="0" type="button">✗</button>`}</div>`; }).join("")}</div>
+      <p class="muted" style="text-align:center;margin:0">✓ adds $${v} and ends the clue. ✗ takes $${v} and keeps it open.</p>
+      <div class="judge">${G.flipped ? `<button class="btn primary" id="r-next" type="button">Next clue</button>` : `<button class="btn primary" id="r-flip" type="button">Show answer to room</button>`}<button class="btn" id="r-nobody" type="button">Nobody got it</button></div>`;
+  } else if(ph === "reveal"){
+    const lg = G.lastGuess;
+    h = `${clue(G.q && G.q.q)}${ansBox()}<p class="msg small">${G.lastRight ? nm(G.lastRight) + " got it" : "Nobody got it"}</p>
+      ${lg ? `<button class="btn wide ${lg.right ? "bad" : "good"}" id="r-over" data-ok="${lg.right ? 0 : 1}" type="button">${lg.right ? "Oops, " + esc(P[lg.pid] ? P[lg.pid].name : "") + " was wrong" : "Oops, " + esc(P[lg.pid] ? P[lg.pid].name : "") + " was right"}</button>` : ""}
+      <button class="btn primary wide" id="r-next" type="button">Next clue</button>`;
+  } else if(ph === "roundend"){
+    h = `<div class="splash dj"><p class="who" style="font-size:44px">DOUBLE JEOPARDY</p><p class="meta">Starting in a moment</p></div>`;
+  } else if(ph === "fcat"){
+    const c = ids.filter(id => (G.scores[id]||0) > 0);
+    h = `<div class="splash dj"><p class="meta">Final Jeopardy</p><p class="who" style="font-size:34px">${esc(G.fin && G.fin.cat)}</p></div>${ansBox()}
+      ${c.length ? `<p class="msg small">Type each wager</p><div class="flist">${c.map(id => `<label class="frow" style="--c:${P[id].color}"><span class="nm">${esc(P[id].name)}</span><span class="fa muted">up to ${money(G.scores[id])}</span><input class="pt-in" type="number" inputmode="numeric" step="100" min="0" max="${G.scores[id]}" data-rfw="${id}" value="${P[id].fw ?? 0}"></label>`).join("")}</div>` : `<p class="msg small">Nobody has money to wager.</p>`}
+      <button class="btn primary wide" id="r-fclue" type="button">Show the clue</button>`;
+  } else if(ph === "fclue"){
+    h = `<div class="cluebox"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue" style="font-size:24px">${esc(G.fin.q)}</p></div>${ansBox()}<button class="btn primary wide" id="r-frev" type="button">Show the answer</button>`;
+  } else if(ph === "freveal"){
+    h = `${ansBox()}<div class="flist">${ids.map(id => { const d = G.fDone[id]; return `<div class="frow" style="--c:${P[id].color}"><span class="nm">${esc(P[id].name)}</span><span class="fa muted">${money(P[id].fw||0)}</span><button class="btn good sm${d === "right" ? " on" : ""}" data-rfj="${id}" data-ok="1" type="button">Right</button><button class="btn bad sm${d === "wrong" ? " on" : ""}" data-rfj="${id}" data-ok="0" type="button">Wrong</button></div>`; }).join("")}</div>
+      <button class="btn primary wide" id="r-finish" type="button" ${ids.every(id => G.fDone[id]) ? "" : "disabled"}>Show the winner</button>`;
+  } else if(ph === "over"){
+    const top = ids.slice().sort((a, b) => G.scores[b] - G.scores[a])[0];
+    h = `<p class="who" style="color:${top ? P[top].color : "#fff"}">${top ? esc(P[top].name) + " WINS" : ""}</p><button class="btn primary wide" id="r-again" type="button">Play again</button>`;
+  } else {
+    h = `<p class="msg small">Follow along on the laptop</p>`;
+  }
+  if(h === lastRemoteHTML && $("r-main").firstChild){ renderRemoteScores(ids); return; }
+  lastRemoteHTML = h;
+  // keep a half-typed name or wager
+  const keep = {}; let focusSel = null;
+  document.querySelectorAll("#r-main input").forEach(i => { const k = i.id ? "#" + i.id : i.dataset.rfw ? `[data-rfw="${i.dataset.rfw}"]` : ""; if(k){ keep[k] = i.value; if(document.activeElement === i) focusSel = k; } });
+  $("r-main").innerHTML = h;
+  for(const [k, v] of Object.entries(keep)){ const el = document.querySelector("#r-main " + k); if(el && k !== "#r-ddw" && !el.dataset.rfw) el.value = v; else if(el && focusSel === k) el.value = v; }
+  if(focusSel){ const el = document.querySelector("#r-main " + focusSel); if(el) el.focus(); }
+  renderRemoteScores(ids);
+  wireRemote();
+}
+let lastRemoteHTML = "";
+function renderRemoteScores(ids){
+  const html = ids.slice().sort((a, b) => (G.scores[b]||0) - (G.scores[a]||0)).map(id => `<div class="sc" style="--c:${P[id].color}"><span class="n">${esc(P[id].name)}</span><span class="p">${money(G.scores[id]||0)}</span><span class="r-adj"><button type="button" data-radj="${id}" data-d="-100">−100</button><button type="button" data-radj="${id}" data-d="100">+100</button></span></div>`).join("");
+  if($("r-scores").innerHTML !== html){ $("r-scores").innerHTML = html; document.querySelectorAll("[data-radj]").forEach(b => b.onclick = () => rcmd("adj", {id: b.dataset.radj, d: +b.dataset.d})); }
+}
+function wireRemote(){
+  // wire
+  const on = (id, fn) => { const el = $(id); if(el) el.onclick = fn; };
+  const addIn = $("r-add"); if(addIn){ const add = () => { const v = addIn.value.trim(); if(!v) return; addIn.value = ""; rcmd("add", {name: v}); addIn.focus(); }; on("r-addgo", add); addIn.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); add(); } }); }
+  document.querySelectorAll("[data-rrm]").forEach(b => b.onclick = () => rcmd("rm", {id: b.dataset.rrm}));
+  on("r-start", () => rcmd("start"));
+  document.querySelectorAll("#r-main .tile:not([disabled])").forEach(b => b.onclick = () => rcmd("pick", {c: +b.dataset.c, r: +b.dataset.r}));
+  document.querySelectorAll("[data-rdw]").forEach(b => b.onclick = () => rcmd("ddwho", {id: b.dataset.rdw}));
+  on("r-ddgo", () => rcmd("ddgo", {id: G.ddWho, amt: +$("r-ddw").value || 0}));
+  document.querySelectorAll("[data-raw]").forEach(b => b.onclick = () => { document.querySelectorAll("[data-raw]").forEach(x => x.disabled = true); try{ navigator.vibrate && navigator.vibrate(20); }catch(e){} rcmd("award", {id: b.dataset.raw, ok: b.dataset.ok === "1"}); });
+  on("r-flip", () => rcmd("flip")); on("r-nobody", () => rcmd("nobody")); on("r-next", () => rcmd("next"));
+  const ov = $("r-over"); if(ov) ov.onclick = () => rcmd("overrule", {ok: ov.dataset.ok === "1"});
+  document.querySelectorAll("[data-rfw]").forEach(i => { const save = () => rcmd("fw", {id: i.dataset.rfw, amt: +i.value || 0}); i.addEventListener("change", save); });
+  on("r-fclue", () => { document.querySelectorAll("[data-rfw]").forEach(i => rcmd("fw", {id: i.dataset.rfw, amt: +i.value || 0})); setTimeout(() => rcmd("fclue"), 150); });
+  on("r-frev", () => rcmd("frev"));
+  document.querySelectorAll("[data-rfj]").forEach(b => b.onclick = () => rcmd("fj", {id: b.dataset.rfj, ok: b.dataset.ok === "1"}));
+  on("r-finish", () => rcmd("finish")); on("r-again", () => rcmd("again"));
+}
+
 /* ===== host engine ===== */
 let played = new Set(), restoring = false, idTries = 0;
 function newCode(){ const L = "ABCDEFGHJKLMNPQRSTUVWXYZ"; let c = ""; for(let i=0;i<4;i++) c += L[Math.floor(Math.random()*L.length)]; return c; }
 try{ if(sessionStorage.getItem("nnj-autoresume")){ sessionStorage.removeItem("nnj-autoresume"); setTimeout(() => { if(!$("btn-host").classList.contains("hidden")) $("btn-host").click(); }, 300); } }catch(e){}
-$("btn-new").onclick = () => { try{ localStorage.removeItem("nnj-host9"); }catch(e){} $("btn-host").click(); };
+$("btn-new").onclick = () => { try{ localStorage.removeItem("nnj-host10"); }catch(e){} $("btn-host").click(); };
 $("btn-host").onclick = async () => {
   isHost = true; myName = "";
   $("landing").classList.add("hidden"); $("tv").classList.remove("hidden"); keepAwake();
@@ -557,7 +680,7 @@ $("btn-host").onclick = async () => {
   try{ played = new Set(JSON.parse(localStorage.getItem("nnj-played") || "[]")); }catch(e){}
   await Promise.all([loadBank(), loadIce()]);
   DF = buildDF(BANK); KNOWN = buildKnown(BANK);
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host9") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host10") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ CODE = saved.code; G = saved.G; P = saved.P || {}; restoring = true; }
   else { CODE = newCode(); P = {}; G = null; newGame(); }
   if(G.board.some(col => col.some(t => !byId(t.id))) || !byId(G.finalId)){ const keepP = P; newGame(); P = keepP; }
@@ -656,6 +779,46 @@ function newGame(){
 }
 const vals = () => BASE.map(v => v * (G.round || 1));
 function publicP(){ const out = {}, reveal = G.phase === "freveal" || G.phase === "over"; for(const [id,p] of Object.entries(P)){ out[id] = {name: p.name, color: p.color, fwIn: p.fw != null, faIn: !!p.fa}; if(reveal){ out[id].fw = p.fw ?? 0; out[id].fa = p.fa || ""; } } return out; }
+let remoteSeen = 0;
+const remoteOn = () => [...conns].some(c => c.remote && c.open) || (remotePids.size && Date.now() - remoteSeen < 30000);
+function remoteState(){
+  let ans = null;
+  if(G.cur && G.board[G.cur.c] && ["mclue","mdd","reveal","clue","ddclue","vote"].includes(G.phase)){ const q = curQ(); if(q) ans = {a: q.a, x: q.x}; }
+  if(["fcat","fclue","freveal","over"].includes(G.phase)){ const f = byId(G.finalId); if(f) ans = {a: f.a, x: f.x, q: f.q}; }
+  return {type: "rstate", G: publicG(), P: Object.fromEntries(Object.entries(P).map(([id, p]) => [id, {name: p.name, color: p.color, fw: p.fw ?? null, fa: p.fa || ""}])), ans};
+}
+function runRemote(m){
+  const a = m.a || {}, ph = G.phase;
+  switch(m.cmd){
+    case "start": return startGame();
+    case "add": if(ph === "lobby") mAddPlayer(a.name); return;
+    case "rm": if(ph === "lobby" && P[a.id]){ delete P[a.id]; delete G.scores[a.id]; commit(); } return;
+    case "pick": if(ph === "board"){ const t = G.board[a.c|0] && G.board[a.c|0][a.r|0]; if(t && !t.used) openTile(a.c|0, a.r|0); } return;
+    case "award": return mAward(a.id, !!a.ok);
+    case "flip": return mFlip();
+    case "nobody": return mNobody();
+    case "next": if(ph === "mclue") return mNext(); if(ph === "reveal") return backToBoard(); return;
+    case "ddwho": if(ph === "mdd" && P[a.id]){ G.ddWho = a.id; commit(); } return;
+    case "ddgo": return mStartDD(a.id || G.ddWho, +a.amt || 0);
+    case "fw": if(ph === "fcat" && P[a.id]){ P[a.id].fw = Math.min(Math.max(Math.round(+a.amt || 0), 0), Math.max(G.scores[a.id]||0, 0)); commit(); } return;
+    case "fclue": return finalClue();
+    case "frev": return finalReveal();
+    case "fj": return fJudge(a.id, !!a.ok);
+    case "finish": return finish();
+    case "again": if(ph === "over"){ newGame(); commit(); } return;
+    case "overrule": return overrule(!!a.ok);
+    case "adj": if(P[a.id]){ G.scores[a.id] = (G.scores[a.id]||0) + (+a.d||0); if(G.phase === "freveal" && G.fBase && a.id in G.fBase) G.fBase[a.id] += (+a.d||0); commit(); } return;
+  }
+}
+function showRemoteQR(){
+  const url = location.origin + location.pathname + "?remote=" + CODE + "&k=" + REMOTE_KEY;
+  $("sheet-inner").innerHTML = `<div class="row"><b class="grow" style="font-size:20px">Host remote</b><button class="btn sm" id="rq-close" type="button">Close</button></div>
+    <p style="margin:0">Scan this with <b>your</b> phone. It shows you the answers and the controls. Players shouldn't scan it.</p>
+    <div class="bigqr" style="align-self:center">${qrSVG(url, 6)}</div><p class="muted" style="margin:0;font-size:13px;word-break:break-all">${esc(url)}</p>
+    <p class="muted" style="margin:0">This closes by itself once your phone connects.</p>`;
+  $("sheet").dataset.qr = "1"; $("sheet").classList.remove("hidden");
+  $("rq-close").onclick = closeMenu; $("sheet").onclick = e => { if(e.target.id === "sheet") closeMenu(); };
+}
 function publicG(){ const g = Object.assign({}, G); delete g.usedIds; delete g.finalId; g.code = CODE; return g; }
 function stateMsg(){ return {type:"state", G: publicG(), P: publicP()}; }
 let bTimer = null;
@@ -663,9 +826,11 @@ function broadcast(){
   clearTimeout(bTimer);
   bTimer = setTimeout(() => {
     const m = stateMsg();
-    for(const c of conns){ try{ if(c.open) c.send(m); }catch(e){} }
+    const rs = remoteState();
+    for(const c of conns){ try{ if(c.open) c.send(c.remote ? rs : m); }catch(e){} }
     relayPub("/s", m, true);
-    try{ localStorage.setItem("nnj-host9", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
+    for(const id of remotePids) relayPub("/p/" + id, rs);
+    try{ localStorage.setItem("nnj-host10", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
   }, 10);
 }
 function commit(){ G.at = Date.now(); render(); broadcast(); if(newBuild) setTimeout(applyUpdate, 1500); }
@@ -686,7 +851,7 @@ function hostRelays(){
   }
   setInterval(() => { if(G) relayPub("/s", {type: "pong"}); }, 4000);   // heartbeat so phones know the relay is alive
 }
-function relaySubscribe(){ for(const c of relayClients) if(c.connected && c._sub !== CODE){ if(c._sub) try{ c.unsubscribe("stjeezy/v9/" + c._sub + "/h"); }catch(e){} c.subscribe(TOPIC() + "/h"); c._sub = CODE; } }
+function relaySubscribe(){ for(const c of relayClients) if(c.connected && c._sub !== CODE){ if(c._sub) try{ c.unsubscribe("stjeezy/v10/" + c._sub + "/h"); }catch(e){} c.subscribe(TOPIC() + "/h"); c._sub = CODE; } }
 const relayCount = () => relayClients.filter(c => c.connected).length;
 const inGame = id => id in G.scores && P[id];
 
@@ -702,6 +867,14 @@ function handle(c, m){
   if(!isHost || !m || typeof m !== "object" || !G) return;
   const pid = String(m.pid || "").slice(0,24); if(!pid) return;
   if(m.type === "ping"){ if(c) try{ c.send({type:"pong"}); }catch(e){} return; }
+  if(m.type === "remote-hello"){
+    if(m.k !== REMOTE_KEY){ if(c) try{ c.send({type: "rdenied"}); }catch(e){} return; }
+    if(c && c.relay) remotePids.add(pid); else if(c){ c.remote = true; c.pid = pid; }
+    remoteSeen = Date.now(); if(G.settings.peek !== false){ G.settings.peek = false; }
+    if($("sheet") && $("sheet").dataset.qr) closeMenu();
+    commit(); return;
+  }
+  if(m.type === "rcmd"){ if(m.k === REMOTE_KEY){ remoteSeen = Date.now(); runRemote(m); } return; }
   if(m.type === "hello"){
     if(pid === me || (isManual() && !P[pid])) return;
     if(c) c.pid = pid;
@@ -977,6 +1150,7 @@ const LIVE_RE = /<span id="(lv-[^"]+)" data-live>[\s\S]*?<\/span><!--e-->/g;
 let lastShell = "";
 function render(){
   if(!G) return;
+  if(isRemote){ renderRemote(); return; }
   if(isHost){ renderTV(); return; }
   const keep = {}; let focusId = null;
   document.querySelectorAll("#main input").forEach(i => { keep[i.id] = i.value; if(document.activeElement === i) focusId = i.id; });
@@ -1174,6 +1348,7 @@ function tick(p, from, to){ const t0 = now(), d = 650; const step = t => { const
 /* laptop-only: the host sees the answer in the control bar before revealing it to the room */
 function hostAns(q){
   if(!q || G.flipped) return "";
+  if(remoteOn()) return `<span class="muted">Answer is on your phone remote</span>`;
   if(G.settings.peek === false) return `<button class="btn sm" id="hb-peek" type="button">Show me the answer<kbd>H</kbd></button>`;
   return `<span class="hostans">Answer: <b>${esc(q.a)}</b>${q.x ? ` <span class="muted">also: ${esc(q.x)}</span>` : ""}</span><button class="btn sm" id="hb-peek" type="button">Hide<kbd>H</kbd></button>`;
 }
@@ -1240,6 +1415,7 @@ function renderTV(){
     const chips = ids.map(id => `<span class="chip" style="--c:${colorOf(id)}">${esc(nameOf(id))}${man ? ` <button class="chipx" type="button" data-mrm="${id}" aria-label="Remove ${esc(nameOf(id))}">✕</button>` : ""}</span>`).join("") || `<span class="muted">Nobody yet</span>`;
     const left = man
       ? `<p class="step">Laptop only</p><p class="url" style="color:var(--mute)">No phones needed. Add everyone playing, then start. You click who got each answer.</p>
+         <div class="row"><button class="btn${remoteOn() ? "" : " primary"}" id="m-remote" type="button">${remoteOn() ? "✓ Host remote connected" : "Use my phone as the host remote"}</button></div>
          <p class="step">Players</p><div class="row"><input id="m-addname" class="txt-in" type="text" maxlength="16" autocomplete="off" placeholder="Type a name, press Enter" style="max-width:440px"><button class="btn primary" id="m-add" type="button">Add</button></div>`
       : `<p class="step">Grab your phone and go to</p><p class="url">${esc(shortUrl)}</p><p class="step">Room code</p><p class="bigcode">${esc(CODE)}</p>`;
     h = `<div class="tv-lobby"><div style="display:flex;flex-direction:column;gap:2vh">${left}
@@ -1303,6 +1479,7 @@ function renderTV(){
   if(keepId){ const el = document.querySelector("#tv-main " + keepId); if(el){ el.focus(); if(keepVal != null) el.value = keepVal; } }
   lastStage = ph === "dd" ? "dd"+G.token : ph === "mdd" ? "mdd"+G.token : (ph === "clue" || ph === "ddclue" || ph === "reveal" || ph === "vote" || ph === "mclue") ? "q"+(G.cur?G.cur.c+"-"+G.cur.r:"") + ((ph === "reveal" || ph === "vote" || (ph === "mclue" && G.flipped)) ? "|f" : "") : ph;
   document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => setMode(b.dataset.mode));
+  const rmb = $("m-remote"); if(rmb) rmb.onclick = showRemoteQR;
   const addIn = $("m-addname"); if(addIn){ const add = () => { const v = addIn.value; if(!v.trim()) return; addIn.value = ""; mAddPlayer(v); const n = $("m-addname"); if(n) n.focus(); }; $("m-add").onclick = add; addIn.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); add(); } }); if(ph === "lobby" && !ids.length) setTimeout(() => { const n = $("m-addname"); if(n && document.activeElement !== n) n.focus(); }, 50); }
   document.querySelectorAll("[data-mrm]").forEach(b => b.onclick = () => { const id = b.dataset.mrm; delete P[id]; delete G.scores[id]; commit(); });
   document.querySelectorAll("[data-ddwho]").forEach(b => b.onclick = () => { G.ddWho = b.dataset.ddwho; commit(); });
@@ -1328,11 +1505,12 @@ function openMenu(){
     <div class="settings"><label><input type="checkbox" id="m-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud</b></span></label>${voiceSelect("m-voice")}<label><input type="checkbox" id="m-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy</b> after round one</span></label></div>
     <span class="muted" style="font-size:14px">Room ${esc(CODE)} · ${conns.size} direct connection${conns.size === 1 ? "" : "s"} · backup relay ${relayCount() ? "on" : "off"} · questions from ${esc(G.src)}</span>
     <button class="btn wide" id="m-share" type="button">Share invite link</button>
+    <button class="btn wide" id="m-rq" type="button">${remoteOn() ? "Host remote connected. Show its code again" : "Use my phone as the host remote"}</button>
     ${["board","clue","reveal","dd","ddclue"].includes(G.phase) ? `<button class="btn wide" id="m-final" type="button">Skip to Final Jeopardy</button>` : ""}
     <button class="btn wide bad" id="m-new" type="button">New game, new questions</button>`;
   $("sheet").classList.remove("hidden");
   const on = (id, fn) => { const el = $(id); if(el) el.onclick = fn; };
-  on("m-close", closeMenu); on("m-share", shareInvite);
+  on("m-close", closeMenu); on("m-share", shareInvite); on("m-rq", showRemoteQR);
   $("sheet").onclick = e => { if(e.target.id === "sheet") closeMenu(); };
   document.querySelectorAll("[data-adj]").forEach(b => b.onclick = () => { const id = b.dataset.adj, dd = +b.dataset.d; G.scores[id] = (G.scores[id]||0) + dd; if(G.phase === "freveal" && G.fBase && id in G.fBase) G.fBase[id] += dd; commit(); openMenu(); });
   document.querySelectorAll("[data-set]").forEach(inp => { const save = () => { const v = Math.round(+inp.value); if(!isFinite(v)) return; const id = inp.dataset.set; G.scores[id] = v; if(G.phase === "freveal" && G.fBase){ const w = P[id] && P[id].fw || 0, d = G.fDone[id]; G.fBase[id] = v - (d === "right" ? w : d === "wrong" ? -w : 0); } commit(); }; inp.onchange = save; inp.onkeydown = e => { if(e.key === "Enter"){ save(); inp.blur(); } }; });
@@ -1356,7 +1534,7 @@ function openMenu(){
   on("m-final", () => { closeMenu(); toFinal(); });
   on("m-new", () => { const b = $("m-new"); if(!b.dataset.armed){ b.dataset.armed = "1"; b.textContent = "Tap again: scores reset"; return; } closeMenu(); newGame(); commit(); });
 }
-function closeMenu(){ $("sheet").classList.add("hidden"); }
+function closeMenu(){ $("sheet").classList.add("hidden"); delete $("sheet").dataset.qr; }
 async function shareInvite(){
   const url = location.origin + location.pathname + "?code=" + CODE;
   try{ if(navigator.share){ await navigator.share({title: "St. Jeezy Jeopardy", text: "Join my game, room " + CODE, url}); return; } }catch(e){ if(e && e.name === "AbortError") return; }
