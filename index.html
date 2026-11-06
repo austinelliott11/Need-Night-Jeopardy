@@ -247,6 +247,7 @@ header.top .logo{font-size:22px}
     </div>
     <div class="or hidden" id="or">Hosting? Open this page on a laptop or TV</div>
     <button class="btn wide hidden" id="btn-host" type="button">Host on this screen</button>
+    <button class="btn wide primary hidden" id="btn-new" type="button">Host a new game</button>
   </div>
 </div>
 
@@ -407,7 +408,7 @@ const SFX = {
   if(typeof Peer === "undefined"){ $("status").textContent = "Couldn't load the game's connection library. Check your internet and reload."; return; }
   ["join-card","or","btn-host"].forEach(id => $(id).classList.remove("hidden"));
   let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host8") || "null"); }catch(e){}
-  if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ $("btn-host").textContent = "Resume hosting room " + saved.code; }
+  if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ $("btn-host").textContent = "Resume hosting room " + saved.code; $("btn-new").classList.remove("hidden"); }
   $("status").textContent = code ? "Type your name and tap Join." : "Type your name, then join a room or host one.";
   // a phone that reloads mid-game (Safari does this in the background) rejoins on its own
   let j = null; try{ j = JSON.parse(localStorage.getItem("nnj-joined") || "null"); }catch(e){}
@@ -505,6 +506,7 @@ function act(m){ if(!isHost) send(m); }
 /* ===== host engine ===== */
 let played = new Set(), restoring = false, idTries = 0;
 function newCode(){ const L = "ABCDEFGHJKLMNPQRSTUVWXYZ"; let c = ""; for(let i=0;i<4;i++) c += L[Math.floor(Math.random()*L.length)]; return c; }
+$("btn-new").onclick = () => { try{ localStorage.removeItem("nnj-host8"); }catch(e){} $("btn-host").click(); };
 $("btn-host").onclick = async () => {
   isHost = true; myName = "";
   $("landing").classList.add("hidden"); $("tv").classList.remove("hidden"); keepAwake();
