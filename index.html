@@ -142,6 +142,7 @@ header.top .logo{font-size:22px}
 .tv-status .go{color:var(--blood);font-family:var(--stencil);letter-spacing:.04em}
 .voicerow{display:flex;gap:8px;align-items:center}
 .voicerow select{flex:1;min-width:0;font-family:var(--body);font-size:16px;padding:8px;border-radius:8px;border:1px solid #3a5263;background:#0b1116;color:var(--ink)}
+.linkbtn{background:none;border:0;color:#ffd27a;text-decoration:underline;font:inherit;font-weight:700;margin-left:10px;padding:4px}
 /* answer box + timers */
 #ansbox{background:var(--board);border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
 #ans-clue{margin:0;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:17px;line-height:1.15;text-align:center}
@@ -426,7 +427,7 @@ document.addEventListener("visibilitychange", () => { if(document.visibilityStat
 
 /* ===== player networking ===== */
 let retryTimer = null, lastPong = 0, pingTimer = null, kicked = false;
-function setConn(t, force){ if(t && !force && relayAlive()) t = ""; const b = $("conn"); b.textContent = t || ""; b.classList.toggle("hidden", !t); }
+function setConn(t, force){ if(t && !force && relayAlive()) t = ""; const b = $("conn"); b.textContent = t || ""; if(t){ const x = document.createElement("button"); x.type = "button"; x.className = "linkbtn"; x.dataset.leave = "1"; x.textContent = "Change room"; b.appendChild(x); wireLeave(); } b.classList.toggle("hidden", !t); }
 const relayAlive = () => !isHost && !!relayLive && relayLive.connected && Date.now() - lastPong < 10000;
 function playerRelay(i){
   if(isHost || kicked || typeof mqtt === "undefined") return;
@@ -448,7 +449,9 @@ $("btn-join").onclick = async () => {
   CODE = code; myName = name; isHost = false; enterGame();
   try{ localStorage.setItem("nnj-joined", JSON.stringify({code, at: Date.now()})); history.replaceState(null, "", location.pathname + "?code=" + code); }catch(e){}
   $("g-code").textContent = CODE; $("g-me").textContent = myName;
-  $("main").innerHTML = `<p class="msg">Joining room ${esc(CODE)}…</p>`;
+  $("main").innerHTML = `<p class="msg">Joining room ${esc(CODE)}…</p><p class="muted" style="text-align:center;margin:0" id="join-help">Make sure the laptop is hosting room ${esc(CODE)}.</p><button class="btn wide" type="button" data-leave="1">Wrong code? Go back</button>`;
+  wireLeave();
+  setTimeout(() => { if(!G && $("join-help")) $("join-help").textContent = "Still can't find room " + CODE + ". Check the code on the laptop, or go back and try again."; }, 12000);
   await loadIce(); if(!RELAY_ONLY) connect(); playerRelay(0);
   clearInterval(pingTimer); pingTimer = setInterval(() => { if(conn && conn.open){ send({type:"ping"}); if(lastPong && Date.now() - lastPong > 9000){ setConn("Connection dropped. Reconnecting…"); connect(true); } } }, 3000);
 };
@@ -500,6 +503,14 @@ function onHost(m){
   if(m.type === "state"){ if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
   else if(m.type === "kicked"){ try{ localStorage.removeItem("nnj-joined"); }catch(e){} kicked = true; try{ relayLive && relayLive.end(true); }catch(e){} relayLive = null; const c = conn; conn = null; clearInterval(pingTimer); clearTimeout(retryTimer); try{ c && c.close(); }catch(e){} clearTimeout(retryTimer); setConn("The host removed you from this game. Reload the page to rejoin.", true); }
 }
+/* leave the room and go back to the start screen to enter a different code */
+function leaveRoom(){
+  kicked = true;
+  try{ localStorage.removeItem("nnj-joined"); }catch(e){}
+  try{ conn && conn.close(); }catch(e){} try{ peer && peer.destroy(); }catch(e){} try{ relayLive && relayLive.end(true); }catch(e){}
+  location.replace(location.pathname);
+}
+function wireLeave(){ document.querySelectorAll("[data-leave]").forEach(b => b.onclick = () => { if(G && G.phase !== "lobby" && !b.dataset.armed){ b.dataset.armed = "1"; b.textContent = "Tap again to leave"; return; } leaveRoom(); }); }
 /* every action goes through here, host or not */
 function act(m){ if(!isHost) send(m); }
 
@@ -996,8 +1007,9 @@ function openProfile(){
   inner.innerHTML = `<div class="row"><b class="grow" style="font-size:20px">You</b><button class="btn sm" id="pf-close" type="button">Done</button></div>
     <label for="pf-name" class="muted">Name</label>
     <div class="ansrow"><input id="pf-name" class="txt-in" type="text" maxlength="16" autocomplete="nickname" enterkeyhint="done" value="${esc(mine.name || myName)}"><button class="btn primary" id="pf-save" type="button">Save</button></div>
-    <span class="muted">Color</span><div class="swatches" id="pf-colors"></div><p class="muted" style="margin:0;font-size:14px">Colors other players have are blacked out.</p>`;
-  drawSwatches();
+    <span class="muted">Color</span><div class="swatches" id="pf-colors"></div><p class="muted" style="margin:0;font-size:14px">Colors other players have are blacked out.</p>
+    <button class="btn wide bad" type="button" data-leave="1">Leave this game</button>`;
+  drawSwatches(); wireLeave();
   $("sheet").classList.remove("hidden");
   const save = () => { const n = $("pf-name").value.trim(); if(n){ act({type: "profile", name: n}); try{ localStorage.setItem("nnj-name", n); }catch(e){} } $("pf-name").blur(); };
   $("pf-save").onclick = save; $("pf-name").addEventListener("keydown", e => { if(e.key === "Enter") save(); });
