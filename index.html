@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Nerd Night Jeopardy Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Big+Shoulders+Stencil+Display:wght@800&family=Barlow+Semi+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Gunmetal war room: brass values, blood-red buzzer. Three views: host controls, TV display, player phone. */
+  --bg:#0b1116; --board:#14212b; --tile:#1b2d3a; --tile-hi:#24404f; --line:#22384a;
+  --brass:#d9a441; --ink:#eef1ea; --mute:#7f939d; --blood:#c0302a; --good:#3f9b5f;
+  --display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --stencil:"Big Shoulders Stencil Display","Big Shoulders Display",Impact,sans-serif;
+  --body:"Barlow Semi Condensed","Arial Narrow",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+button:disabled{cursor:default;opacity:.45}
+input{font-family:inherit}
+.hidden{display:none!important}
+.logo{font-family:var(--stencil);letter-spacing:.06em;color:var(--brass);margin:0;line-height:1}
+.logo span{color:var(--ink)}
+.btn{background:transparent;color:var(--ink);border:1px solid #33495a;border-radius:8px;padding:10px 16px;font-size:17px;font-weight:600}
+.btn:hover:not(:disabled){border-color:var(--brass);color:var(--brass)}
+.btn.primary{background:var(--brass);color:#1a1206;border-color:var(--brass)}
+.btn.good{background:var(--good);border-color:var(--good);color:#fff}
+.btn.bad{background:#6b2622;border-color:#8a302a;color:#fff}
+.btn.sm{padding:5px 9px;font-size:14px}
+.muted{color:var(--mute)}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;background:#22384a;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+
+/* Landing */
+#landing{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px;text-align:center}
+#landing .logo{font-size:clamp(40px,9vw,88px)}
+#landing .roles{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+#landing .card{background:var(--board);border:1px solid var(--line);border-radius:12px;padding:18px;max-width:440px;width:100%;display:flex;flex-direction:column;gap:12px}
+#name,.code-in{font-size:22px;padding:12px;border-radius:8px;border:1px solid #33495a;background:#0f1a22;color:var(--ink);text-align:center}
+#status{max-width:520px}
+
+/* Scoreboard strip */
+.scores{display:flex;gap:8px;flex-wrap:wrap}
+.sc{flex:1 1 120px;background:#101a21;border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:flex;flex-direction:column}
+.sc .n{font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc .p{font-family:var(--display);font-weight:900;font-size:28px;font-variant-numeric:tabular-nums;line-height:1}
+.sc.neg .p{color:var(--blood)}
+.sc.pick{border-color:var(--brass);box-shadow:0 0 0 1px var(--brass) inset}
+.sc.pick .n{color:var(--brass)}
+.sc.you .n::after{content:" (you)"}
+
+/* Board (TV + host) */
+.board{display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:auto repeat(5,1fr);gap:6px;background:var(--board);padding:6px;border-radius:10px}
+.cat{background:#0f1a22;border-bottom:3px solid var(--brass);display:flex;align-items:center;justify-content:center;text-align:center;padding:8px 6px;min-height:64px;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(13px,1.5vw,26px);line-height:1.02;letter-spacing:.03em;text-wrap:balance}
+.tile{background:var(--tile);border:0;border-radius:4px;color:var(--brass);font-family:var(--display);font-weight:900;font-size:clamp(22px,4vw,70px);font-variant-numeric:tabular-nums;text-shadow:0 3px 0 rgba(0,0,0,.45)}
+.tile:hover:not(:disabled){background:var(--tile-hi)}
+.tile:disabled{opacity:1;cursor:default}
+.tile.used{background:#101a21;color:transparent;text-shadow:none}
+
+/* TV display */
+#tv{height:100%;display:flex;flex-direction:column;padding:12px 18px;gap:10px}
+#tv header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+#tv .logo{font-size:clamp(22px,2.6vw,40px)}
+#tv-turn{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:.05em;font-size:clamp(16px,2vw,30px);color:var(--brass)}
+#tv-main{flex:1;min-height:0;display:flex;flex-direction:column}
+#tv-main .board{flex:1}
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:3vh;background:var(--board);border-radius:10px;padding:4vh 5vw}
+.stage .top{font-family:var(--display);font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-size:clamp(16px,1.8vw,28px)}
+.stage .top b{color:var(--brass)}
+.clue{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(28px,4.4vw,76px);line-height:1.08;max-width:24ch;text-wrap:balance;margin:0}
+.ans{font-weight:700;font-size:clamp(24px,3vw,48px);color:var(--brass);margin:0}
+.who{font-family:var(--stencil);font-size:clamp(36px,6vw,110px);line-height:1;color:#fff6e8;margin:0}
+.light{display:inline-flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:clamp(16px,1.8vw,26px)}
+.light i{width:18px;height:18px;border-radius:50%;background:#33495a}
+.light.on i{background:#e33;box-shadow:0 0 18px #f44}
+.dd-splash{background:var(--blood)}
+.dd-splash .who{font-size:clamp(60px,11vw,190px)}
+@media (prefers-reduced-motion:no-preference){.dd-splash .who{animation:slam .5s cubic-bezier(.2,1.6,.4,1) both}@keyframes slam{from{transform:scale(2.2) rotate(-6deg);opacity:0}to{transform:none;opacity:1}}}
+
+/* Host */
+#host{min-height:100%;display:flex;flex-direction:column;gap:10px;padding:10px 14px}
+#host header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+#host .logo{font-size:28px}
+#h-board .board{height:min(62vh,560px)}
+.hpanel{background:var(--board);border:1px solid var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.hpanel .clue{font-size:clamp(22px,3vw,40px);max-width:none}
+.secret{background:#0f1a22;border:1px dashed var(--brass);border-radius:8px;padding:8px 12px;color:var(--brass);font-weight:700;font-size:20px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.plist{display:flex;flex-direction:column;gap:6px}
+.prow{display:flex;align-items:center;gap:8px;background:#101a21;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.prow .nm{flex:1;font-weight:600}
+.prow .pt{font-family:var(--display);font-weight:900;font-size:22px;min-width:80px;text-align:right;font-variant-numeric:tabular-nums}
+.fa{flex:1;font-weight:600}
+
+/* Player phone */
+#player{min-height:100%;display:flex;flex-direction:column;gap:12px;padding:12px 14px calc(14px + env(safe-area-inset-bottom))}
+#player header{display:flex;justify-content:space-between;align-items:center}
+#player .logo{font-size:24px}
+#p-main{flex:1;display:flex;flex-direction:column;gap:12px;justify-content:center}
+.p-msg{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:30px;text-align:center;line-height:1.05;text-wrap:balance;margin:0}
+.p-clue{font-size:19px;text-align:center;line-height:1.3;background:var(--board);border-radius:10px;padding:12px;margin:0}
+#buzz{width:100%;aspect-ratio:1/1;max-height:52vh;border-radius:50%;border:0;background:radial-gradient(circle at 40% 35%,#e5463e,#9e1f19 70%);color:#fff;font-family:var(--stencil);font-size:clamp(48px,16vw,96px);letter-spacing:.06em;box-shadow:0 10px 0 #5e120e,0 14px 30px rgba(0,0,0,.6);touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin:0 auto;display:block;max-width:52vh}
+#buzz:active:not(:disabled){transform:translateY(6px);box-shadow:0 4px 0 #5e120e}
+#buzz:disabled{background:#2a3742;box-shadow:0 10px 0 #18222a;opacity:1;color:#56697a}
+#buzz.won{background:radial-gradient(circle at 40% 35%,#f2c460,#a87416 70%);box-shadow:0 10px 0 #5b3f0a;color:#1a1206}
+.pgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+.pgrid .cat{font-size:10px;min-height:44px;padding:3px;border-bottom-width:2px}
+.pgrid .tile{font-size:16px;padding:12px 0;text-shadow:none}
+.big-in{font-family:var(--display);font-weight:800;font-size:34px;padding:10px;border-radius:8px;border:0;text-align:center;width:100%}
+.txt-in{font-size:20px;padding:12px;border-radius:8px;border:1px solid #33495a;background:#0f1a22;color:var(--ink);width:100%}
+.code-in{letter-spacing:.3em;text-transform:uppercase;font-family:var(--display);font-weight:800;font-size:30px!important}
+.codebig{font-family:var(--stencil);color:var(--brass);letter-spacing:.12em}
+</style>
+</head>
+<body>
+
+<section id="landing">
+  <h1 class="logo">NERD NIGHT <span>JEOPARDY</span></h1>
+  <p id="status" class="muted">Loading…</p>
+  <div class="card hidden" id="join-card">
+    <label for="code" class="muted">Room code (on the TV)</label>
+    <input id="code" class="code-in" maxlength="4" autocomplete="off" autocapitalize="characters" placeholder="ABCD">
+    <label for="name" class="muted">Your name on the scoreboard</label>
+    <input id="name" maxlength="18" autocomplete="nickname" placeholder="Type a name">
+    <button class="btn primary" id="btn-join" type="button">Join the game</button>
+  </div>
+  <div class="roles hidden" id="roles">
+    <button class="btn" id="btn-tv" type="button">Show the TV board on this screen</button>
+    <button class="btn primary" id="btn-host" type="button">Host a new game from this device</button>
+  </div>
+</section>
+
+<section id="tv" class="hidden">
+  <header><h1 class="logo">NERD NIGHT <span>JEOPARDY</span></h1><div id="tv-turn"></div><div class="muted">Room code <b class="codebig" id="tv-code" style="font-size:clamp(22px,2.6vw,40px)"></b> <span id="tv-conn"></span></div></header>
+  <div id="tv-main"></div>
+  <div class="scores" id="tv-scores"></div>
+</section>
+
+<section id="host" class="hidden">
+  <header>
+    <h1 class="logo">HOST <span>CONTROLS</span></h1><div><span class="muted">Room code</span> <b class="codebig" id="h-code" style="font-size:30px"></b> <span class="muted" id="h-net" style="font-size:14px">Opening room…</span></div>
+    <div class="row">
+      <button class="btn sm" id="h-new" type="button">New game</button>
+      <button class="btn sm" id="h-final" type="button">Go to Final Jeopardy</button>
+    </div>
+  </header>
+  <div id="h-panel" class="hpanel"></div>
+  <div id="h-board"></div>
+  <div class="hpanel"><div class="row" style="justify-content:space-between"><b>Players</b><span class="muted" style="font-size:14px">Use the small buttons to fix a score by $200</span></div><div class="plist" id="h-players"></div></div>
+</section>
+
+<section id="player" class="hidden">
+  <header><h1 class="logo">NERD <span>NIGHT</span></h1><span class="pill" id="p-me"></span></header>
+  <p class="muted hidden" id="p-conn" style="text-align:center;margin:0"></p>
+  <div id="p-main"></div>
+  <div class="scores" id="p-scores"></div>
+</section>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+const BANK_RAW = [["C1-01",0,"Eragon",200,"Eragon's dragon is named for the color of her sapphire-blue scales","Who is Saphira?",""],["C1-02",0,"Eragon",200,"Eragon finds Saphira's egg while hunting in this mountain range north of Carvahall","What is the Spine?",""],["C1-03",0,"Eragon",200,"Eragon kills this Shade in the battle under Farthen Dûr, earning the title Shadeslayer","Who is Durza?",""],["C1-04",0,"Eragon",200,"The evil king who destroyed the Dragon Riders and rules the Empire from Urû'baen","Who is Galbatorix?",""],["C1-05",0,"Ender's Game",200,"Ender Wiggin's real first name","What is Andrew?",""],["C1-06",0,"Ender's Game",200,"The insect-like alien enemy, called buggers by the soldiers","Who are the Formics?","buggers"],["C1-07",0,"Ender's Game",200,"Ender's sister Valentine shapes world politics online under this pen name, while Peter writes as Locke","What is Demosthenes?",""],["C1-08",0,"Lord of the Rings",200,"Gandalf's horse, chief of the Mearas","Who is Shadowfax?",""],["C1-09",0,"Lord of the Rings",200,"Bilbo's elven blade, which glows blue when orcs are near, passed on to Frodo","What is Sting?",""],["C1-10",0,"Harry Potter",200,"Neville Longbottom keeps losing this pet toad","What is Trevor?",""],["C1-11",0,"Harry Potter",200,"Hermione's Patronus takes the form of this animal","What is an otter?",""],["C1-12",0,"Eragon",400,"Eragon's cousin, a farmer who earns the nickname Stronghammer","Who is Roran?",""],["C1-13",0,"Eragon",400,"Murtagh's red dragon, who hatched for him in Galbatorix's possession","Who is Thorn?",""],["C1-14",0,"Eragon",400,"Beaked, insect-like hunters of Galbatorix who torch Eragon's farm and kill his uncle Garrow","What are the Ra'zac?",""],["C1-15",0,"Eragon",400,"The great dwarf city-mountain inside the hollow peak of Farthen Dûr","What is Tronjheim?",""],["C1-16",0,"Ender's Game",400,"The army Ender is given to command, made of launchies and named after one that had been retired as unlucky","What is Dragon Army?",""],["C1-17",0,"Ender's Game",400,"Legendary hero of the Second Formic Invasion who personally trains Ender at Command School","Who is Mazer Rackham?",""],["C1-18",0,"Ender's Game",400,"Ender's first army after his launch group, commanded by Bonzo Madrid","What is Salamander Army?",""],["C1-19",0,"Lord of the Rings",400,"The reforged sword of Elendil that Aragorn carries, its name meaning Flame of the West","What is Andúril?",""],["C1-20",0,"Lord of the Rings",400,"Saruman's servant in Edoras, whose real name is Gríma","Who is Wormtongue?",""],["C1-21",0,"Harry Potter",400,"Marauder's Map nickname of Sirius Black, from his dog form","What is Padfoot?",""],["C1-22",0,"Harry Potter",400,"Fred and George's joke shop at 93 Diagon Alley","What is Weasleys' Wizard Wheezes?",""],["C1-23",0,"Eragon",600,"Brom gives Eragon this red sword, once Morzan's, whose name means misery","What is Zar'roc?",""],["C1-24",0,"Eragon",600,"Crippled elf Rider who trains Eragon on the Crags of Tel'naeír with his golden dragon Glaedr","Who is Oromis?",""],["C1-25",0,"Eragon",600,"This werecat tells Eragon to look under the Menoa tree for a weapon and to go to the Rock of Kuthian when all seems lost","Who is Solembum?",""],["C1-26",0,"Eragon",600,"Eragon's botched blessing on this orphaned baby leaves her compelled to feel, and shield people from, the pain of others","Who is Elva?",""],["C1-27",0,"Ender's Game",600,"The colonel who runs Battle School and recruits Ender","Who is Hyrum Graff?","Graff"],["C1-28",0,"Ender's Game",600,"The tiny genius Ender puts in charge of a special toon in Dragon Army","Who is Bean?",""],["C1-29",0,"Ender's Game",600,"Ender's Battle Room mantra for orienting in zero gravity: the enemy's gate is this direction","What is down?",""],["C1-30",0,"Lord of the Rings",600,"Ruffians in the Shire knew Saruman by this name, likely from the Orkish word for old man","What is Sharkey?",""],["C1-31",0,"Lord of the Rings",600,"The oldest Ent, who carries Merry and Pippin through Fangorn","Who is Treebeard?","Fangorn"],["C1-32",0,"Harry Potter",600,"Dumbledore's younger brother, barman of the Hog's Head","Who is Aberforth Dumbledore?","Aberforth"],["C1-33",0,"Harry Potter",600,"Harry's wand core comes from this phoenix, which also supplied Voldemort's","Who is Fawkes?",""],["C1-34",0,"Eragon",800,"Sworn never to forge another Rider's blade, this elf smith took over Eragon's body to make Brisingr","Who is Rhunön?",""],["C1-35",0,"Eragon",800,"Eragon's sword Brisingr bursts into blue flame when he says its name, which means this in the Ancient Language","What is fire?",""],["C1-36",0,"Eragon",800,"Herbalist and fortune-teller in Teirm, often seen with the werecat Solembum","Who is Angela?",""],["C1-37",0,"Eragon",800,"The Vault of Souls on Vroengard held 136 Eldunarí and exactly this many dragon eggs","What is 243?",""],["C1-38",0,"Ender's Game",800,"In the Battle School mind game, Ender beats this unwinnable challenge by burrowing into a giant's eye","What is the Giant's Drink?",""],["C1-39",0,"Ender's Game",800,"The bully Ender beats in his first fight on Earth, who later turns out to have died","Who is Stilson?",""],["C1-40",0,"Ender's Game",800,"Ender's Dragon Army broke tradition by using five toons of this many soldiers each","What is eight?",""],["C1-41",0,"Lord of the Rings",800,"The Bree-land man who sold the hobbits the half-starved pony Bill","Who is Bill Ferny?",""],["C1-42",0,"Lord of the Rings",800,"The shaggy grey hill-pony the Rohirrim lent to Merry","Who is Stybba?",""],["C1-43",0,"Harry Potter",800,"Hagrid emptied this numbered Gringotts vault, which held the Philosopher's Stone, before Quirrell could break in","What is Vault 713?",""],["C1-44",0,"Harry Potter",800,"The only Hogwarts professor who is a ghost, he teaches History of Magic","Who is Professor Binns?","Binns"],["C1-45",0,"Eragon",1000,"Arya kills Shruikan by driving this Dauthdaert, named for a flower, through his eye","What is Niernen (the Orchid)?","Orchid"],["C1-46",0,"Eragon",1000,"The first Dragon Rider, an elf also named Eragon, was bonded to this dragon","Who is Bid'Daum?",""],["C1-47",0,"Eragon",1000,"After claiming Zar'roc, Murtagh renames it with this word meaning freedom","What is Ithring?",""],["C1-48",0,"Eragon",1000,"Galbatorix spent 40 years searching for this, the true name of the Ancient Language itself","What is the Name of Names?",""],["C1-49",0,"Ender's Game",1000,"Bonzo Madrid's homeland, which shapes his obsession with honor","What is Spain?","Spanish"],["C1-50",0,"Ender's Game",1000,"Ender writes this book after finding the cocoon of the last queen, signing it as the Speaker for the Dead","What is The Hive Queen?",""],["C1-51",0,"Lord of the Rings",1000,"Chief of the Woses, the Wild Men who guide the Rohirrim through the Stonewain Valley","Who is Ghân-buri-Ghân?",""],["C1-52",0,"Lord of the Rings",1000,"The hobbits' barrow-blades were forged by smiths of Arthedain for their wars against this realm of the Witch-king","What is Angmar?",""],["C1-53",0,"Harry Potter",1000,"Wealthy old witch who owned Hufflepuff's cup and Slytherin's locket before Tom Riddle killed her","Who is Hepzibah Smith?",""],["C1-54",0,"Harry Potter",1000,"Hogwarts' Latin motto, meaning never tickle a sleeping dragon","What is Draco dormiens nunquam titillandus?",""],["C2-01",1,"A New Hope",200,"Luke whines that he was going into Tosche Station to pick up some of these","What are power converters?",""],["C2-02",1,"A New Hope",200,"The moisture farmer uncle who raises Luke on Tatooine","Who is Owen Lars?","Uncle Owen"],["C2-03",1,"Return of the Jedi",200,"The forest moon where the Rebels attack the second Death Star's shield generator","What is Endor?","forest moon of Endor"],["C2-04",1,"The Empire Strikes Back",200,"The swamp planet where Luke trains with Yoda","What is Dagobah?",""],["C2-05",1,"The Phantom Menace",200,"Anakin wins his freedom by winning this race on Tatooine","What is the Boonta Eve Classic?","podrace"],["C2-06",1,"Return of the Jedi",200,"The monster Jabba keeps in a pit beneath his throne room","What is the rancor?",""],["C2-07",1,"Attack of the Clones",200,"The bounty hunter who serves as the genetic template for the clone army","Who is Jango Fett?",""],["C2-08",1,"Revenge of the Sith",200,"The volcanic planet where Obi-Wan and Anakin duel","What is Mustafar?",""],["C2-09",1,"Battlefront",200,"The studio that developed the original Battlefront and Battlefront II","What is Pandemic Studios?","Pandemic"],["C2-10",1,"Battlefront II",200,"Battlefront II added this kind of battle, letting players dogfight and board capital ships","What is space combat?","space battles"],["C2-11",1,"A New Hope",400,"This Corellian pilot flies in both Death Star attacks, pulling out of the first trench run after his X-wing is hit","Who is Wedge Antilles?",""],["C2-12",1,"The Empire Strikes Back",400,"Lando's bald aide in Cloud City, wearing a cybernetic headband","Who is Lobot?",""],["C2-13",1,"The Phantom Menace",400,"The Toydarian junk dealer who owns Anakin and Shmi","Who is Watto?",""],["C2-14",1,"The Phantom Menace",400,"Darth Maul's red lightsaber has this many blades","What is two?","double-bladed"],["C2-15",1,"Attack of the Clones",400,"The ocean planet beyond the Outer Rim where the clone army is grown","What is Kamino?",""],["C2-16",1,"Return of the Jedi",400,"Jabba's frog-like jester who cackles from the edge of his throne","Who is Salacious Crumb?","Salacious B. Crumb"],["C2-17",1,"The Empire Strikes Back",400,"The Imperial admiral Vader Force-chokes over a video screen for pulling the fleet out of lightspeed too close to Hoth","Who is Admiral Ozzel?","Ozzel"],["C2-18",1,"Revenge of the Sith",400,"Wookiee chieftain who fights beside Yoda and Chewbacca on Kashyyyk","Who is Tarfful?",""],["C2-19",1,"Battlefront II",400,"The campaign's legion, known as Vader's Fist","What is the 501st?","501st Legion"],["C2-20",1,"Battlefront II",400,"The game mode where you fight for control of the galaxy one planet at a time, building fleets","What is Galactic Conquest?",""],["C2-21",1,"Battlefront",400,"Republic class with a jetpack, an EMP launcher, and long low jumps","What is the jet trooper?",""],["C2-22",1,"A New Hope",600,"The Death Star officer, and Grand Moff Tarkin's subordinate, whom Vader Force-chokes for his lacking faith","Who is Admiral Motti?","Motti"],["C2-23",1,"A New Hope",600,"Luke's best friend from Tatooine, killed in the Death Star trench run","Who is Biggs Darklighter?",""],["C2-24",1,"Attack of the Clones",600,"Count Dooku's Separatist ally and leader of the Geonosians","Who is Poggle the Lesser?","Poggle"],["C2-25",1,"The Phantom Menace",600,"The Trade Federation viceroy who blockades Naboo","Who is Nute Gunray?",""],["C2-26",1,"Revenge of the Sith",600,"Cyborg Separatist general Obi-Wan defeats on Utapau","Who is General Grievous?",""],["C2-27",1,"Return of the Jedi",600,"The Mon Calamari admiral who shouts It's a trap","Who is Admiral Ackbar?","Ackbar"],["C2-28",1,"The Empire Strikes Back",600,"The AT-AT walkers attack the Rebels' Echo Base on this ice planet","What is Hoth?",""],["C2-29",1,"Return of the Jedi",600,"The Ewok who befriends Leia","Who is Wicket?","Wicket W. Warrick"],["C2-30",1,"Battlefront",600,"Rebel special class with extra health, time bombs and a bowcaster","What is the Wookiee smuggler?","Wookiee"],["C2-31",1,"Battlefront II",600,"The space class that repairs any starfighter it occupies","What is the pilot?",""],["C2-32",1,"Battlefront II",600,"Hero Assault, every hero versus every villain, can only be played on this map","What is Mos Eisley?",""],["C2-33",1,"Attack of the Clones",800,"On Kamino, Lama Su tells Obi-Wan the clone army was ordered by this Jedi Master, who had died almost ten years earlier","Who is Sifo-Dyas?",""],["C2-34",1,"The Phantom Menace",800,"Qui-Gon pays Watto in these, which Watto refuses, demanding something real","What are Republic credits?","credits"],["C2-35",1,"Revenge of the Sith",800,"The planet where Ki-Adi-Mundi is gunned down by his own clones during Order 66","What is Mygeeto?",""],["C2-36",1,"The Empire Strikes Back",800,"The insectoid bounty hunter who stands beside Boba Fett on the Executor's bridge","Who is Bossk?",""],["C2-37",1,"A New Hope",800,"Han brags that the Millennium Falcon made the Kessel Run in less than this many parsecs","What is 12?","twelve"],["C2-38",1,"Return of the Jedi",800,"Name of Jabba's sail barge over the Great Pit of Carkoon","What is the Khetanna?",""],["C2-39",1,"Attack of the Clones",800,"The Geonosis arena beast that Obi-Wan fights, a crab-clawed creature","What is an acklay?",""],["C2-40",1,"Battlefront",800,"Imperial special class with a jump pack and blast cannon","What is the dark trooper?",""],["C2-41",1,"Battlefront",800,"The four heroes in the original game: Luke, Vader, Count Dooku and this Jedi for the Republic","Who is Mace Windu?",""],["C2-42",1,"Battlefront II",800,"This Separatist bodyguard droid is the CIS officer class in Battlefront II","What is the IG-100 MagnaGuard?","MagnaGuard"],["C2-43",1,"The Phantom Menace",1000,"The Gungan underwater city where Jar Jar takes the Jedi to meet Boss Nass","What is Otoh Gunga?",""],["C2-44",1,"Revenge of the Sith",1000,"Palpatine tells Anakin the tragedy of this Sith Lord, who could stop his loved ones from dying","Who is Darth Plagueis?","Plagueis the Wise"],["C2-45",1,"The Empire Strikes Back",1000,"The Star Destroyer captain who apologizes to Vader in person for losing the Falcon, and is choked for it","Who is Captain Needa?","Needa"],["C2-46",1,"A New Hope",1000,"Grand Moff Tarkin orders the Death Star to fire on Alderaan when Leia gives up this decoy rebel base","What is Dantooine?",""],["C2-47",1,"Attack of the Clones",1000,"Owen Lars's girlfriend, who meets Anakin and Padmé at the Lars homestead and later raises Luke","Who is Beru Whitesun?","Beru"],["C2-48",1,"Battlefront",1000,"The icy world with a Separatist sensor station and an Imperial listening outpost, later cut from Battlefront II","What is Rhen Var?",""],["C2-49",1,"Battlefront II",1000,"Battlefront II's two new land classes are the officer and this, which replaced the pilot on the ground","What is the engineer?",""],["C2-50",1,"Battlefront II",1000,"Year Battlefront II was released, on November 1","What is 2005?",""],["C2-51",1,"The Phantom Menace",1000,"The handmaiden who poses as Queen Amidala as a decoy while Padmé hides in plain sight","Who is Sabé?",""],["C2-52",1,"A New Hope",1000,"The Bith band playing in the Mos Eisley cantina","Who are Figrin D'an and the Modal Nodes?","Modal Nodes"],["C3-01",2,"Halo",200,"Under the visor, Master Chief Spartan-117 has this first name","What is John?",""],["C3-02",2,"Halo",200,"Master Chief's AI partner, carried in his armor","Who is Cortana?",""],["C3-03",2,"Halo",200,"The studio that made the original Halo trilogy","What is Bungie?",""],["C3-04",2,"Smash Bros.",200,"Brawl's story-driven adventure mode","What is The Subspace Emissary?","Subspace Emissary"],["C3-05",2,"Smash Bros.",200,"The console Super Smash Bros. Melee was made for","What is the Nintendo GameCube?","GameCube"],["C3-06",2,"Smash Bros.",200,"The glowing item that lets a fighter use a Final Smash in Brawl","What is the Smash Ball?",""],["C3-07",2,"Modern Warfare 2",200,"The studio behind the original Modern Warfare 2","What is Infinity Ward?",""],["C3-08",2,"Modern Warfare 2",200,"The killstreak earned with 25 kills in a row, which ends the match","What is the Tactical Nuke?","Nuke"],["C3-09",2,"Modern Warfare 2",200,"The skull-masked Task Force 141 operator","Who is Ghost?","Simon Riley"],["C3-10",2,"Battlefront",200,"Separatist special class in the original Battlefront that rolls into a ball and can't use vehicles","What is the droideka?",""],["C3-11",2,"Halo",400,"The UNSC ship that crash-lands on the ring at the start of Halo: Combat Evolved","What is the Pillar of Autumn?",""],["C3-12",2,"Halo",400,"The parasite released on the first ring, which infects humans and Covenant alike","What is the Flood?",""],["C3-13",2,"Halo",400,"The sarcastic Forerunner monitor of Installation 04","Who is 343 Guilty Spark?","Guilty Spark"],["C3-14",2,"Smash Bros.",400,"The Subspace Emissary's final boss, whose name twists the word taboo","Who is Tabuu?",""],["C3-15",2,"Smash Bros.",400,"Brawl's two third-party guest fighters","Who are Snake and Sonic?",""],["C3-16",2,"Smash Bros.",400,"The flat, no-items, edge-to-edge stage beloved by competitive players","What is Final Destination?",""],["C3-17",2,"Smash Bros.",400,"Two Fire Emblem swordsmen who debuted in Melee","Who are Marth and Roy?",""],["C3-18",2,"Modern Warfare 2",400,"Infamous airport massacre mission named after Makarov's order to his men","What is No Russian?",""],["C3-19",2,"Modern Warfare 2",400,"The special forces unit led by Soap MacTavish and Captain Price","What is Task Force 141?","TF141"],["C3-20",2,"Modern Warfare 2",400,"The U.S. Army general who betrays Task Force 141","Who is General Shepherd?","Shepherd"],["C3-21",2,"Battlefront II",400,"Battlefront II's second space class, which fights inside capital ships, alongside the pilot","What is the marine?",""],["C3-22",2,"Halo",600,"The Sangheili commander who becomes the Arbiter in Halo 2","Who is Thel 'Vadam?","Thel 'Vadamee"],["C3-23",2,"Halo",600,"Captain Keyes's first name","What is Jacob?",""],["C3-24",2,"Halo",600,"The cigar-chewing Marine sergeant whose first name is Avery","Who is Sergeant Johnson?","Avery Johnson"],["C3-25",2,"Smash Bros.",600,"Melee's cast is 25 fighters, or 26 if you count this alter ego separately","Who is Sheik?",""],["C3-26",2,"Smash Bros.",600,"Melee's baby Pokémon fighter, who hurts itself with its own electric attacks","Who is Pichu?",""],["C3-27",2,"Smash Bros.",600,"Flat, black-and-white fighter from Nintendo's 1980s handhelds","Who is Mr. Game & Watch?",""],["C3-28",2,"Modern Warfare 2",600,"Ghost's real name","What is Simon Riley?",""],["C3-29",2,"Modern Warfare 2",600,"Roach's real name","What is Gary Sanderson?",""],["C3-30",2,"Modern Warfare 2",600,"The 11-kill killstreak that puts you in a gunship raining shells on the map","What is the AC-130?","AC130"],["C3-31",2,"Battlefront II",600,"Battlefront II award that only snipers can earn","What is Marksman?",""],["C3-32",2,"Halo",800,"The Covenant cruiser where Captain Keyes is held prisoner in Halo: CE","What is the Truth and Reconciliation?",""],["C3-33",2,"Halo",800,"Halo: CE mission where Chief storms an island to find the ring's map room","What is The Silent Cartographer?","Silent Cartographer"],["C3-34",2,"Halo",800,"Prophet Master Chief kills on Delta Halo near the end of Halo 2","Who is the Prophet of Regret?","Regret"],["C3-35",2,"Smash Bros.",800,"Roy was added to Melee to promote this Fire Emblem game, which came out after Melee did","What is The Binding Blade?",""],["C3-36",2,"Smash Bros.",800,"In The Subspace Emissary, R.O.B.s are forced to carry and detonate these","What are Subspace Bombs?",""],["C3-37",2,"Smash Bros.",800,"The Subspace Army's robed leader, who turns out to be R.O.B. in disguise","Who is the Ancient Minister?",""],["C3-38",2,"Modern Warfare 2",800,"Task Force 141 storms a Russian gulag to rescue this numbered prisoner","What is Prisoner 627?","627"],["C3-39",2,"Modern Warfare 2",800,"Prisoner 627 turns out to be this man","Who is Captain Price?","John Price"],["C3-40",2,"Modern Warfare 2",800,"The 15-kill killstreak that knocks out the enemy team's electronics","What is the EMP?",""],["C3-41",2,"Battlefront II",800,"Battlefront II award that only engineers can earn","What is Regulator?",""],["C3-42",2,"Halo",1000,"Installation number of the first Halo ring in Combat Evolved","What is 04?","Installation 04"],["C3-43",2,"Halo",1000,"Installation number of the Ark, where Halo 3's finale takes place","What is 00?","Installation 00"],["C3-44",2,"Halo",1000,"Halo skull that makes Grunts burst into confetti and cheers when headshot","What is Grunt Birthday Party?",""],["C3-45",2,"Smash Bros.",1000,"Sakurai's website that posted Brawl news every weekday before launch","What is the Smash Bros. DOJO!!?","Smash Bros. Dojo"],["C3-46",2,"Smash Bros.",1000,"Number of Melee characters you can play from the start, before unlocking anyone (counting Sheik)","What is 15?","14 without Sheik"],["C3-47",2,"Modern Warfare 2",1000,"Snowy mission where Roach and Soap climb ice cliffs with ice picks","What is Cliffhanger?",""],["C3-48",2,"Modern Warfare 2",1000,"Rio de Janeiro mission where Task Force 141 chases a contact through the favela to find Alejandro Rojas","What is Takedown?",""],["C3-49",2,"Battlefront II",1000,"Besides Mos Eisley, Hero Assault was added to this Wookiee planet's map as an Xbox Live download","What is Kashyyyk?",""],["C3-50",2,"Battlefront",1000,"Hidden Battlefront II modes that appear on PS2 and PC via a pause-screen glitch","What are Team Deathmatch and Team CP?","Team Deathmatch"],["C4-01",3,"Basics",200,"The survival rule of threes says you can last about 3 days without this","What is water?",""],["C4-02",3,"Plants",200,"Leaves of three, let it be is meant to keep you away from this plant","What is poison ivy?","poison oak"],["C4-03",3,"Fire",200,"The fire triangle: heat, fuel and this","What is oxygen?","air"],["C4-04",3,"Navigation",200,"This star sits almost directly above the North Pole, so it marks north at night","What is Polaris?","the North Star"],["C4-05",3,"Signals",200,"Three dots, three dashes, three dots is this Morse code distress signal","What is SOS?",""],["C4-06",3,"Navigation",200,"A magnetized needle in this tool points toward magnetic north","What is a compass?",""],["C4-07",3,"Survival TV",200,"Former SAS reservist who drank his own urine on Man vs. Wild","Who is Bear Grylls?",""],["C4-08",3,"Gear",200,"Hikers say this fabric kills because it stops insulating once it's soaked","What is cotton?",""],["C4-09",3,"Signals",200,"A survival whistle signals distress with this many blasts","What is three?",""],["C4-10",3,"Animals",200,"Capsaicin-based spray carried in grizzly country","What is bear spray?","pepper spray"],["C4-11",3,"Water",400,"CDC advice: bring water to a rolling boil for this long to disinfect it (three times longer at high altitude)","What is one minute?","1 minute"],["C4-12",3,"Water",400,"Purification tablets often use chlorine dioxide or this element, which turns water brownish","What is iodine?",""],["C4-13",3,"Health",400,"Tick-borne illness known for a bull's-eye rash","What is Lyme disease?","Lyme"],["C4-14",3,"Animals",400,"Red touches yellow, kills a fellow is a rhyme for identifying this venomous snake","What is a coral snake?","coral snake"],["C4-15",3,"Animals",400,"Besides rattlesnakes and copperheads, the other North American pit viper, also called the water moccasin","What is the cottonmouth?","water moccasin"],["C4-16",3,"Health",400,"The mild first stage of frostbite, before permanent tissue damage","What is frostnip?",""],["C4-17",3,"Survival TV",400,"Canadian survivalist who films himself alone, no crew, on Survivorman","Who is Les Stroud?",""],["C4-18",3,"Getting lost",400,"Lost hiker acronym: Stop, Think, Observe and this","What is Plan?",""],["C4-19",3,"Gear",400,"A reflective sheet developed by NASA that traps body heat","What is a space blanket?","emergency blanket"],["C4-20",3,"Real stories",400,"The 1972 Andes plane crash survivors were a rugby team from this country","What is Uruguay?",""],["C4-21",3,"Gear",600,"Paracord's common rating, named for its breaking strength in pounds","What is 550?",""],["C4-22",3,"Fire",600,"Synthetic metal in a ferro rod that throws hot sparks when scraped","What is ferrocerium?",""],["C4-23",3,"Fire",600,"Char cloth is usually made by charring this plant fiber in a tin","What is cotton?","linen"],["C4-24",3,"Health",600,"Hypothermia begins when core temperature drops below this many degrees Fahrenheit","What is 95?","35 Celsius"],["C4-25",3,"Health",600,"Heat illness where body temperature tops 104 °F and confusion sets in, a true emergency","What is heat stroke?",""],["C4-26",3,"Water",600,"Plastic sheet over a hole that collects condensation to make drinking water","What is a solar still?",""],["C4-27",3,"Gear",600,"Insulation rating for a sleeping pad, higher meaning warmer","What is R-value?",""],["C4-28",3,"Survival TV",600,"History Channel show where contestants survive alone with ten items","What is Alone?",""],["C4-29",3,"Plants",600,"Marsh plant called the supermarket of the swamp for its edible roots and shoots","What is cattail?","bulrush"],["C4-30",3,"Fire",600,"Dry, fluffy material that catches a spark first, before kindling and fuel wood","What is tinder?",""],["C4-31",3,"Health",600,"Ice-cold water triggers this involuntary gasp reflex, which drowns many people in the first minute","What is cold shock?","cold shock response"],["C4-32",3,"Navigation",800,"The angle between true north and magnetic north","What is magnetic declination?","declination"],["C4-33",3,"Water",800,"Parasite from untreated stream water, nicknamed beaver fever","What is Giardia?","giardiasis"],["C4-34",3,"Knots",800,"The rabbit comes out of the hole, around the tree and back down the hole ties this loop knot","What is a bowline?",""],["C4-35",3,"Water",800,"Drinking this kind of water makes dehydration worse because your kidneys need more fluid to flush it","What is seawater?","salt water"],["C4-36",3,"Health",800,"Headache, nausea and fatigue above about 8,000 feet signal this condition, also called AMS","What is altitude sickness?","acute mountain sickness"],["C4-37",3,"Gear",800,"Seattle climbing club that published the original Ten Essentials list","What is The Mountaineers?",""],["C4-38",3,"Real stories",800,"Climber who cut off his own forearm after a boulder pinned it in Utah's Blue John Canyon","Who is Aron Ralston?",""],["C4-39",3,"Lightning",800,"Count the seconds between flash and thunder, then divide by this to get the distance in miles","What is five?",""],["C4-40",3,"Plants",800,"This prickly wild green loses its sting once you boil or cook it","What is stinging nettle?","nettle"],["C4-41",3,"Books",800,"Former SAS survival instructor John 'Lofty' Wiseman wrote this classic guide, first published in 1986","What is the SAS Survival Handbook?",""],["C4-42",3,"Health",1000,"Severely hypothermic people sometimes strip off their clothes, a behavior known by this two-word name","What is paradoxical undressing?",""],["C4-43",3,"Health",1000,"In the final stage of hypothermia, victims often crawl into small enclosed spaces, a behavior called this","What is terminal burrowing?","terminal burrowing behavior"],["C4-44",3,"Plants",1000,"Poisonous carrot relative that looks like Queen Anne's lace and was used to execute Socrates","What is poison hemlock?","hemlock"],["C4-45",3,"Fire",1000,"Ötzi the Iceman carried this hoof-shaped mushroom as tinder","What is tinder fungus?","hoof fungus, Fomes fomentarius"],["C4-46",3,"Real stories",1000,"Christopher McCandless died in an abandoned bus off this Alaskan trail","What is the Stampede Trail?",""],["C4-47",3,"Plants",1000,"The U.S. Army's step-by-step method for testing an unknown plant, one part at a time","What is the Universal Edibility Test?",""],["C4-48",3,"Water",1000,"Boil water three minutes instead of one above this altitude, per the CDC","What is about 6,500 feet?","2,000 meters"],["C4-49",3,"Gear",1000,"Military 550 paracord is officially this type, written with a Roman numeral","What is Type III?",""],["C4-50",3,"Animals",1000,"Old bear safety rule: if it's brown, lie down; if it's black, do this","What is fight back?",""],["C5-01",4,"Dragon Ball Z",200,"Vegeta crushes this device after it reads Goku's power level as over 9,000","What is a scouter?",""],["C5-02",4,"Dragon Ball Z",200,"Goku's Saiyan birth name","What is Kakarot?",""],["C5-03",4,"Dragon Ball Z",200,"Goku's older brother, the Saiyan who kidnaps Gohan in the very first saga","Who is Raditz?",""],["C5-04",4,"Avatar",200,"Aang's six-legged flying bison","Who is Appa?",""],["C5-05",4,"Avatar",200,"Aang's winged lemur","Who is Momo?",""],["C5-06",4,"Avatar",200,"Korra's polar bear dog","Who is Naga?",""],["C5-07",4,"Pokémon",200,"Pokédex number 001","Who is Bulbasaur?","Bulbasaur"],["C5-08",4,"Pokémon",200,"Team Rocket's talking Pokémon","Who is Meowth?","Meowth"],["C5-09",4,"Pokémon",200,"Pewter City Gym Leader who uses Onix","Who is Brock?",""],["C5-10",4,"Dragon Ball Z",400,"The Kai who trains Goku on his tiny planet at the end of Snake Way","Who is King Kai?","North Kai"],["C5-11",4,"Dragon Ball Z",400,"Technique King Kai teaches Goku that multiplies his power at the cost of straining his body","What is the Kaio-ken?","Kaioken"],["C5-12",4,"Dragon Ball Z",400,"The bald Saiyan who arrives on Earth with Vegeta","Who is Nappa?",""],["C5-13",4,"Dragon Ball Z",400,"The Namekian Eternal Dragon, which grants three wishes","Who is Porunga?",""],["C5-14",4,"Avatar",400,"Iroh's fearsome military nickname","What is the Dragon of the West?",""],["C5-15",4,"Avatar",400,"Blind earthbender who invents metalbending","Who is Toph Beifong?","Toph"],["C5-16",4,"Avatar",400,"Korra's pro-bending team with Mako and Bolin","What are the Fire Ferrets?",""],["C5-17",4,"Pokémon",400,"After losing to Lt. Surge's Raichu, Ash's Pikachu refuses to evolve and slaps away this item","What is a Thunder Stone?",""],["C5-18",4,"Pokémon",400,"The pink blob Pokémon whose only move is Transform","Who is Ditto?",""],["C5-19",4,"Pokémon",400,"Professor Oak's grandson and Ash's first rival in the anime","Who is Gary Oak?","Gary"],["C5-20",4,"Dragon Ball Z",600,"Energy attack made from energy gathered from all living things, which Goku learns from King Kai","What is the Spirit Bomb?","Genki Dama"],["C5-21",4,"Dragon Ball Z",600,"Ginyu Force captain who swaps bodies with Goku","Who is Captain Ginyu?","Ginyu"],["C5-22",4,"Dragon Ball Z",600,"Room where a year passes inside while only a day passes outside","What is the Hyperbolic Time Chamber?","Room of Spirit and Time"],["C5-23",4,"Dragon Ball Z",600,"The bio-android who absorbs Androids 17 and 18 to reach his perfect form","Who is Cell?",""],["C5-24",4,"Avatar",600,"Iroh's tea shop in the Upper Ring of Ba Sing Se","What is the Jasmine Dragon?",""],["C5-25",4,"Avatar",600,"Ba Sing Se's secret police, earthbenders who enforce there is no war","Who are the Dai Li?",""],["C5-26",4,"Avatar",600,"The comet that gives firebenders immense power at the end of summer","What is Sozin's Comet?",""],["C5-27",4,"Avatar",600,"Masked leader of the Equalists who takes people's bending away","Who is Amon?",""],["C5-28",4,"Pokémon",600,"Genetically engineered Psychic Pokémon cloned from Mew","Who is Mewtwo?",""],["C5-29",4,"Pokémon",600,"Town with the Pokémon Tower, a graveyard full of Ghost Pokémon","What is Lavender Town?",""],["C5-30",4,"Pokémon",600,"Item that wakes the sleeping Snorlax blocking the road","What is the Poké Flute?",""],["C5-31",4,"Pokémon",600,"Ash releases this Pokémon so it can fly off with a pink mate","Who is Butterfree?","Butterfree"],["C5-32",4,"Dragon Ball Z",800,"Highest setting Goku trains at on the Capsule Corp ship to Namek, after 20x and 50x","What is 100 times Earth's gravity?","100x gravity"],["C5-33",4,"Dragon Ball Z",800,"The gentle red-haired android who loves birds and is crushed by Cell","Who is Android 16?",""],["C5-34",4,"Dragon Ball Z",800,"The evil wizard who created Majin Buu, father of Babidi","Who is Bibidi?",""],["C5-35",4,"Avatar",800,"Avatar Roku's dragon","Who is Fang?",""],["C5-36",4,"Avatar",800,"Aang's mentor and father figure at the Southern Air Temple","Who is Monk Gyatso?","Gyatso"],["C5-37",4,"Avatar",800,"Sokka's black sword, forged from a fallen meteorite","What is the space sword?","Sokka's sword"],["C5-38",4,"Avatar",800,"Aang's son and Korra's airbending teacher","Who is Tenzin?",""],["C5-39",4,"Pokémon",800,"Pokémon from the banned episode that caused seizures in Japan","Who is Porygon?",""],["C5-40",4,"Pokémon",800,"Company in Saffron City that Team Rocket takes over in Red and Blue","What is Silph Co.?",""],["C5-41",4,"Pokémon",800,"Mount Moon fossil choice opposite the Helix Fossil","What is the Dome Fossil?",""],["C5-42",4,"Dragon Ball Z",1000,"Densest material in the universe, whose cube breaks the Z Sword","What is Katchin?",""],["C5-43",4,"Dragon Ball Z",1000,"The Ginyu Force's smallest member, who can freeze time while holding his breath","Who is Guldo?",""],["C5-44",4,"Dragon Ball Z",1000,"The young Namekian who becomes Earth's new Guardian after Kami","Who is Dende?",""],["C5-45",4,"Avatar",1000,"The very first Avatar, who fused with Raava 10,000 years before Korra","Who is Wan?",""],["C5-46",4,"Avatar",1000,"The spirit of darkness and chaos, Raava's opposite","Who is Vaatu?",""],["C5-47",4,"Avatar",1000,"Leader of the Red Lotus who learns to fly after unlocking airbending","Who is Zaheer?",""],["C5-48",4,"Pokémon",1000,"Pokédex number 151","Who is Mew?",""],["C5-49",4,"Pokémon",1000,"Kanto Elite Four member who specializes in Ice-type Pokémon","Who is Lorelei?",""],["C5-50",4,"Pokémon",1000,"Trainer who abandoned Charmander on a rock in the rain before Ash took it","Who is Damian?",""],["C5-51",4,"Pokémon",1000,"Glitch Pokémon found by surfing the east coast of Cinnabar Island","What is MissingNo.?","MissingNo"],["C6-01",5,"Deadliest Warrior",200,"Cable network that aired Deadliest Warrior","What is Spike?","Spike TV"],["C6-02",5,"Deadliest Warrior",200,"On the show's first season, the Ninja fell to this ancient Greek warrior","Who is the Spartan?",""],["C6-03",5,"Deadliest Warrior",200,"In the show's monster matchup, vampires beat these","What are zombies?",""],["C6-04",5,"Deadliest Warrior",200,"The Samurai defeated this Norse raider","Who is the Viking?",""],["C6-05",5,"Animals",200,"Linked to roughly 700,000 human deaths a year, this insect is the deadliest animal on Earth","What is the mosquito?",""],["C6-06",5,"Animals",200,"Fastest land animal","What is the cheetah?",""],["C6-07",5,"Animals",200,"Largest animal ever known to have lived","What is the blue whale?",""],["C6-08",5,"Animals",200,"Shark species in Jaws, the largest predatory fish","What is the great white shark?","great white"],["C6-09",5,"Animals",200,"At 3,700 psi, this reptile has the strongest bite force ever measured","What is the saltwater crocodile?","crocodile"],["C6-10",5,"Deadliest Warrior",400,"The show's very first episode sent the Apache against this Roman arena fighter, who lost","Who is the Gladiator?",""],["C6-11",5,"Deadliest Warrior",400,"The Pirate beat this armored medieval warrior","Who is the Knight?",""],["C6-12",5,"Deadliest Warrior",400,"Japanese crime syndicate that lost to the Mafia","Who are the Yakuza?",""],["C6-13",5,"Deadliest Warrior",400,"The Russian special forces who beat the Green Berets","Who are the Spetsnaz?",""],["C6-14",5,"Animals",400,"This river-dwelling African herbivore is often called the continent's deadliest large land mammal","What is the hippopotamus?","hippo"],["C6-15",5,"Animals",400,"Nearly invisible jellyfish, also called the sea wasp","What is the box jellyfish?",""],["C6-16",5,"Animals",400,"Bird that tops 200 mph in its hunting dive, the fastest animal on Earth","What is the peregrine falcon?",""],["C6-17",5,"Animals",400,"Tiny Colombian golden frog with enough poison to kill ten men","What is the golden poison frog?","poison dart frog"],["C6-18",5,"Animals",400,"Largest living lizard, from Indonesia, with venom glands in its jaw","What is the Komodo dragon?",""],["C6-19",5,"Deadliest Warrior",600,"Scottish rebel who beat Shaka Zulu","Who is William Wallace?",""],["C6-20",5,"Deadliest Warrior",600,"Kung fu warrior who beat the Maori","Who is the Shaolin Monk?",""],["C6-21",5,"Deadliest Warrior",600,"Former Navy SEAL who took over as host in season 3","Who is Richard Machowicz?","Mack"],["C6-22",5,"Deadliest Warrior",600,"Emergency room doctor who judged the damage on the original panel","Who is Dr. Armand Dorian?","Armand Dorian"],["C6-23",5,"Deadliest Warrior",600,"Irish paramilitary group that beat the Taliban","What is the IRA?","Irish Republican Army"],["C6-24",5,"Animals",600,"Australian snake with the most toxic venom of any land snake","What is the inland taipan?","fierce snake"],["C6-25",5,"Animals",600,"Crustacean whose club-like claw strikes as fast as a .22 bullet","What is the mantis shrimp?",""],["C6-26",5,"Animals",600,"Its claw snaps so fast it creates a bubble that collapses with a flash of light and heat","What is the pistol shrimp?","snapping shrimp"],["C6-27",5,"Animals",600,"Sea snail that harpoons prey with a venomous tooth","What is the cone snail?","cone shell"],["C6-28",5,"Animals",600,"Fly that spreads African sleeping sickness","What is the tsetse fly?","tsetse"],["C6-29",5,"Deadliest Warrior",800,"The Hun leader who beat Alexander the Great","Who is Attila the Hun?","Attila"],["C6-30",5,"Deadliest Warrior",800,"Old West outlaw gang that beat Al Capone","Who is the Jesse James Gang?","Jesse James"],["C6-31",5,"Deadliest Warrior",800,"French teenage commander who beat William the Conqueror","Who is Joan of Arc?",""],["C6-32",5,"Deadliest Warrior",800,"American founding general who beat Napoleon in season 3","Who is George Washington?",""],["C6-33",5,"Deadliest Warrior",800,"Ancient elite unit from Persia that beat the Celt","Who is the Persian Immortal?","Immortals"],["C6-34",5,"Animals",800,"The only cattle-like member of Africa's Big Five game animals","What is the Cape buffalo?","African buffalo"],["C6-35",5,"Animals",800,"Small octopus with neon rings and tetrodotoxin venom","What is the blue-ringed octopus?",""],["C6-36",5,"Animals",800,"Japanese delicacy made from pufferfish, which only licensed chefs may prepare","What is fugu?",""],["C6-37",5,"Animals",800,"Bug that spreads Chagas disease, nicknamed for biting near people's lips","What is the kissing bug?","triatomine"],["C6-38",5,"Animals",800,"Shark that can swim far up freshwater rivers, blamed for many attacks","What is the bull shark?",""],["C6-39",5,"Deadliest Warrior",1000,"Central African warriors who beat the Aztec Jaguar","Who is the Zande Warrior?","Zande"],["C6-40",5,"Deadliest Warrior",1000,"Indian warrior caste that beat the Roman Centurion","Who is the Rajput Warrior?","Rajput"],["C6-41",5,"Deadliest Warrior",1000,"Wallachian prince who beat Sun Tzu","Who is Vlad the Impaler?","Vlad"],["C6-42",5,"Deadliest Warrior",1000,"Plains horsemen who beat the Mongol","Who is the Comanche?",""],["C6-43",5,"Deadliest Warrior",1000,"Number of simulated battles per matchup in season 3, up from 1,000","What is 5,000?","5000"],["C6-44",5,"Deadliest Warrior",1000,"Biomedical scientist who ran the weapons tests and gel dummies","Who is Geoff Desmoulin?","Desmoulin"],["C6-45",5,"Deadliest Warrior",1000,"The 17th-century French soldiers who beat the Ming Warrior","Who are the French Musketeers?","Musketeers"],["C6-46",5,"Animals",1000,"Fish that looks like a rock and is the most venomous fish known","What is the stonefish?",""],["C6-47",5,"Animals",1000,"Australian spider whose males wander into homes; deadly to humans and primates","What is the Sydney funnel-web spider?","funnel-web"],["C6-48",5,"Animals",1000,"Genus of Brazilian wandering spiders, Greek for murderess","What is Phoneutria?",""],["C6-49",5,"Animals",1000,"Small viper blamed for more human deaths than any other snake","What is the saw-scaled viper?","Echis"],["C6-50",5,"Animals",1000,"Freshwater snails spread this parasitic disease, also called bilharzia","What is schistosomiasis?",""]];
+const CATS = ["Fantasy & Sci-Fi Books","Star Wars","Video Games","Wilderness Survival","Anime","Deadliest Warrior & Animals"];
+const VALUES = [200,400,600,800,1000];
+const BANK = {}; BANK_RAW.forEach(r => BANK[r[0]] = {id:r[0], c:r[1], s:r[2], v:r[3], q:r[4], a:r[5], x:r[6]});
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = n => (n < 0 ? "-$" : "$") + Math.abs(n).toLocaleString();
+const show = id => ["landing","tv","host","player"].forEach(s => $(s).classList.toggle("hidden", s !== id));
+
+let me = null;
+let G = null;            // game state (host is the authority)
+let P = {};              // players by id
+let role = null;         // "host" | "tv" | "player"
+let hostLoaded = false;
+let peer = null, conn = null, CODE = "";
+const conns = new Set();
+const PREFIX = "nnj-live-v2-";
+
+/* ---------- boot ---------- */
+(function boot(){
+  try{ me = localStorage.getItem("nnj-pid"); if(!me){ me = "p" + Math.random().toString(36).slice(2,10); localStorage.setItem("nnj-pid", me); } }catch(e){ me = "p" + Math.random().toString(36).slice(2,10); }
+  const qs = new URLSearchParams(location.search);
+  const code = (qs.get("code") || location.hash.replace("#","") || "").toUpperCase().replace(/[^A-Z]/g,"").slice(0,4);
+  if(code) $("code").value = code;
+  try{ const saved = localStorage.getItem("nnj-name"); if(saved) $("name").value = saved; }catch(e){}
+  if(typeof Peer === "undefined"){ $("status").textContent = "The connection library didn't load. Check your internet connection and reload."; return; }
+  $("status").textContent = "Enter the room code on the TV, plus your name. Your phone becomes your buzzer.";
+  $("join-card").classList.remove("hidden"); $("roles").classList.remove("hidden");
+})();
+
+const peerOpts = { debug: 0, config: { iceServers: [ {urls: "stun:stun.l.google.com:19302"}, {urls: "stun:global.stun.twilio.com:3478"} ] } };
+
+/* ---------- joining (players and TV) ---------- */
+let wantRole = null, retryTimer = null;
+function connectToHost(asRole){
+  wantRole = asRole;
+  const code = $("code").value.trim().toUpperCase();
+  if(code.length !== 4){ $("status").textContent = "Enter the 4-letter room code shown on the TV."; $("code").focus(); return false; }
+  CODE = code;
+  if(!peer || peer.destroyed){ peer = new Peer(undefined, peerOpts); peer.on("error", e => { if(e && e.type === "peer-unavailable"){ setStatus("No game found with code " + CODE + ". Check the code on the TV."); } }); }
+  const go = () => {
+    if(conn){ try{ conn.close(); }catch(e){} }
+    conn = peer.connect(PREFIX + CODE, { reliable: true, metadata: { pid: me, role: asRole } });
+    conn.on("open", () => { setStatus(""); sendHello(); });
+    conn.on("data", onHostMessage);
+    conn.on("close", () => { setStatus("Connection lost. Reconnecting…"); scheduleRetry(); });
+    conn.on("error", () => scheduleRetry());
+  };
+  if(peer.open) go(); else peer.once("open", go);
+  return true;
+}
+function scheduleRetry(){ clearTimeout(retryTimer); retryTimer = setTimeout(() => { if(peer && peer.disconnected) try{ peer.reconnect(); }catch(e){} connectToHost(wantRole); }, 2000); }
+function setStatus(t){ $("status").textContent = t; const b = $("p-conn"); if(b){ b.textContent = t; b.classList.toggle("hidden", !t); } const tb = $("tv-conn"); if(tb){ tb.textContent = t; } }
+function sendHello(){ if(conn && conn.open) conn.send({type:"hello", pid: me, role: wantRole, doc: wantRole === "player" ? myDoc : null}); }
+function onHostMessage(m){
+  if(!m || typeof m !== "object") return;
+  if(m.type === "state"){ G = m.G; P = m.P || {}; if(role === "player" && G && G.scores && !(me in G.scores) && P[me] === undefined){ sendHello(); } render(); }
+  if(m.type === "kicked"){ role = null; show("landing"); setStatus("The host removed you from the game."); try{ conn.close(); }catch(e){} }
+}
+
+$("btn-join").onclick = () => {
+  const name = $("name").value.trim().slice(0,18);
+  if(!name){ $("name").focus(); return; }
+  try{ localStorage.setItem("nnj-name", name); }catch(e){}
+  myDoc = Object.assign({}, myDoc, {name, joinedAt: myDoc.joinedAt || Date.now()});
+  if(!connectToHost("player")) return;
+  role = "player"; show("player"); $("p-main").innerHTML = `<p class="p-msg">Connecting to room ${esc(CODE)}…</p>`;
+};
+$("btn-tv").onclick = () => { if(!connectToHost("tv")) return; role = "tv"; show("tv"); $("tv-main").innerHTML = `<div class="stage"><p class="clue">Connecting to room ${esc(CODE)}…</p></div>`; };
+$("btn-host").onclick = () => startHosting();
+
+/* ---------- player's own doc ---------- */
+let myDoc = {};
+async function writeMine(){
+  if(conn && conn.open){ try{ conn.send({type:"doc", pid: me, doc: JSON.parse(JSON.stringify(myDoc))}); return true; }catch(e){} }
+  return false;
+}
+function onRoomBuzz(){}
+
+/* ---------- host ---------- */
+function newCode(){ const L = "ABCDEFGHJKLMNPQRSTUVWXYZ"; let c = ""; for(let i=0;i<4;i++) c += L[Math.floor(Math.random()*L.length)]; return c; }
+function startHosting(){
+  role = "host"; hostLoaded = true; show("host");
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host") || "null"); }catch(e){}
+  if(saved && saved.G && saved.G.v && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ CODE = saved.code; G = saved.G; P = saved.P || {}; }
+  else { CODE = newCode(); P = {}; G = null; }
+  openHostPeer();
+  if(!G) newGame(); else commit();
+}
+function openHostPeer(){
+  $("h-code").textContent = CODE;
+  peer = new Peer(PREFIX + CODE, peerOpts);
+  peer.on("open", () => { $("h-net").textContent = "Room open"; });
+  peer.on("error", e => {
+    if(e && e.type === "unavailable-id"){ CODE = newCode(); try{ peer.destroy(); }catch(x){} openHostPeer(); commit(); return; }
+    $("h-net").textContent = "Connection trouble: " + (e && e.type || "unknown") + ". Retrying…";
+  });
+  peer.on("disconnected", () => { $("h-net").textContent = "Reconnecting to the room server…"; setTimeout(() => { try{ peer.reconnect(); }catch(e){} }, 1500); });
+  peer.on("connection", c => {
+    c.on("open", () => { conns.add(c); try{ c.send(stateMsg()); }catch(e){} });
+    c.on("data", m => onClientMessage(c, m));
+    c.on("close", () => conns.delete(c));
+    c.on("error", () => conns.delete(c));
+  });
+}
+function cleanDoc(d){
+  if(!d || typeof d !== "object") return null;
+  const o = { name: String(d.name || "Player").slice(0,18), joinedAt: +d.joinedAt || Date.now() };
+  if(d.buzz) o.buzz = { t: +d.buzz.t, at: +d.buzz.at };
+  if(d.pick) o.pick = { c: +d.pick.c|0, r: +d.pick.r|0, n: +d.pick.n, t: +d.pick.t };
+  if(d.dd) o.dd = { n: +d.dd.n, amt: +d.dd.amt||0 };
+  if(d.f) o.f = { n: +d.f.n, w: +d.f.w||0, a: d.f.a != null ? String(d.f.a).slice(0,80) : undefined };
+  return o;
+}
+function onClientMessage(c, m){
+  if(role !== "host" || !m || typeof m !== "object") return;
+  const pid = String(m.pid || (c.metadata && c.metadata.pid) || "").slice(0,24);
+  if(!pid) return;
+  if(m.type === "hello" && m.role === "player" && m.doc){
+    if(removed.has(pid)) removed.delete(pid);
+    const d = cleanDoc(m.doc); if(!d) return;
+    P[pid] = Object.assign({}, P[pid] || {}, {name: d.name, joinedAt: P[pid] ? P[pid].joinedAt : d.joinedAt});
+    c.pid = pid; onPlayersForHost(); broadcast(); return;
+  }
+  if(m.type === "hello"){ try{ c.send(stateMsg()); }catch(e){} return; }
+  if(m.type === "doc"){
+    if(removed.has(pid)) return;
+    const d = cleanDoc(m.doc); if(!d) return;
+    if(!P[pid]) d.joinedAt = Date.now();
+    P[pid] = d; c.pid = pid;
+    onPlayersForHost(); broadcast();
+  }
+}
+const removed = new Set();
+function publicP(){
+  const out = {}; const showF = G && (G.phase === "freveal" || G.phase === "over");
+  for(const [id,p] of Object.entries(P)){ out[id] = { name: p.name, joinedAt: p.joinedAt }; if(showF && p.f) out[id].f = p.f; }
+  return out;
+}
+function stateMsg(){ return { type: "state", G, P: publicP() }; }
+let bTimer = null;
+function broadcast(){
+  if(role !== "host") return;
+  clearTimeout(bTimer);
+  bTimer = setTimeout(() => {
+    const m = stateMsg();
+    for(const c of conns){ try{ if(c.open) c.send(m); }catch(e){} }
+    try{ localStorage.setItem("nnj-host", JSON.stringify({code: CODE, G, P})); }catch(e){}
+  }, 15);
+}
+function pushG(){ broadcast(); }
+function commit(){ G.at = Date.now(); render(); pushG(); }
+
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function buildBoard(){
+  const used = new Set(); const board = [];
+  for(let c=0;c<6;c++){
+    const col = [];
+    for(const v of VALUES){
+      const pool = shuffle(BANK_RAW.filter(r => r[1]===c && r[3]===v && !used.has(r[5].toLowerCase())));
+      const pick = pool[0]; used.add(pick[5].toLowerCase());
+      col.push({id: pick[0], used:false, dd:false});
+    }
+    board.push(col);
+  }
+  const c = Math.floor(Math.random()*6), r = 1 + Math.floor(Math.random()*4);
+  board[c][r].dd = true;
+  const finals = BANK_RAW.filter(x => x[3]===1000 && !board.some(col => col.some(t => t.id===x[0])));
+  return {board, finalId: shuffle(finals)[0][0]};
+}
+function newGame(keepScores){
+  const {board, finalId} = buildBoard();
+  const ids = Object.keys(P);
+  G = { v:2, phase:"lobby", board, finalId, pickT:Date.now(), cur:null, buzzOpen:false, token:Date.now(), winner:null, locked:[], scores:{}, picker: ids.length ? ids[Math.floor(Math.random()*ids.length)] : null,
+        ddN:0, ddWager:0, fN:0, fDone:{}, at:Date.now() };
+  ids.forEach(id => G.scores[id] = 0);
+  commit();
+}
+const lastPick = {}, lastDD = {};
+function onPlayersForHost(){
+  if(role !== "host" || !G) return;
+  let changed = false;
+  for(const id of Object.keys(P)){ if(!(id in G.scores)){ G.scores[id] = 0; changed = true; } }
+  if(!G.picker && Object.keys(P).length){ G.picker = Object.keys(P)[0]; changed = true; }
+  // tile pick from the picker's phone
+  const pp = G.picker && P[G.picker];
+  if(G.phase === "board" && pp && pp.pick && pp.pick.t === G.pickT && pp.pick.n !== lastPick[G.picker]){
+    lastPick[G.picker] = pp.pick.n;
+    const t = G.board[pp.pick.c] && G.board[pp.pick.c][pp.pick.r];
+    if(t && !t.used){ openTile(pp.pick.c, pp.pick.r); return; }
+  }
+  // daily double wager
+  if(G.phase === "dd" && pp && pp.dd && pp.dd.n === G.ddN && lastDD[G.ddN] !== true){
+    lastDD[G.ddN] = true; G.ddWager = clampWager(G.picker, pp.dd.amt); G.phase = "ddclue"; changed = true;
+  }
+  // buzzes through the database
+  if(G.phase === "clue" && G.buzzOpen && !G.winner){
+    const cands = Object.entries(P).filter(([id,p]) => p.buzz && p.buzz.t === G.token && !G.locked.includes(id)).sort((a,b) => a[1].buzz.at - b[1].buzz.at);
+    if(cands.length){ awardBuzz(cands[0][0]); return; }
+  }
+  if(changed) commit(); else render();
+}
+function onRoomBuzz(data){
+  if(role !== "host" || !G || !data) return;
+  if(G.phase === "clue" && G.buzzOpen && !G.winner && data.t === G.token && P[data.id] && !G.locked.includes(data.id)) awardBuzz(data.id);
+}
+function awardBuzz(id){ G.winner = id; G.buzzOpen = false; commit(); }
+function clampWager(id, amt){ const max = Math.max(G.scores[id]||0, 1000); amt = Math.round(+amt || 0); return Math.min(Math.max(amt, 5), max); }
+function openTile(c, r){
+  const t = G.board[c][r]; G.cur = {c, r}; G.winner = null; G.locked = []; G.buzzOpen = false; G.token++;
+  if(t.dd){ G.phase = "dd"; G.ddN = Date.now(); G.ddWager = 0; }
+  else { G.phase = "clue"; G.openAt = Date.now() + 2500; }
+  commit();
+  if(!t.dd) setTimeout(() => { if(G.phase === "clue" && G.cur && G.cur.c===c && G.cur.r===r && !G.buzzOpen && !G.winner){ openBuzzers(); } }, 2500);
+}
+function openBuzzers(){ G.buzzOpen = true; G.winner = null; G.token++; commit(); }
+function curVal(){ return VALUES[G.cur.r]; }
+function judge(right){
+  if(G.phase === "ddclue"){
+    G.scores[G.picker] = (G.scores[G.picker]||0) + (right ? G.ddWager : -G.ddWager);
+    G.phase = "reveal"; G.lastRight = right ? G.picker : null; commit(); return;
+  }
+  const id = G.winner; if(!id) return;
+  if(right){ G.scores[id] = (G.scores[id]||0) + curVal(); G.picker = id; G.phase = "reveal"; G.lastRight = id; commit(); }
+  else {
+    G.scores[id] = (G.scores[id]||0) - curVal(); G.locked.push(id); G.winner = null;
+    const left = Object.keys(P).filter(x => !G.locked.includes(x));
+    if(!left.length){ G.phase = "reveal"; G.lastRight = null; commit(); }
+    else { G.buzzOpen = true; G.token++; commit(); }
+  }
+}
+function revealNow(){ G.phase = "reveal"; G.buzzOpen = false; G.lastRight = null; commit(); }
+function backToBoard(){
+  if(G.cur){ G.board[G.cur.c][G.cur.r].used = true; }
+  G.cur = null; G.winner = null; G.buzzOpen = false; G.locked = [];
+  if(G.board.every(col => col.every(t => t.used))){ toFinal(); return; }
+  G.phase = "board"; G.pickT = Date.now();
+  commit();
+}
+function toFinal(){ G.phase = "fcat"; G.cur = null; G.winner = null; G.buzzOpen = false; G.fDone = {}; G.fN = Date.now(); commit(); }
+function fNext(){
+  if(G.phase === "fcat"){ G.phase = "fclue"; G.fStart = Date.now(); commit(); }
+  else if(G.phase === "fclue"){ G.phase = "freveal"; commit(); }
+  else if(G.phase === "freveal"){ G.phase = "over"; commit(); }
+}
+function fJudge(id, right){
+  const p = P[id]; const w = (p && p.f && p.f.n === G.fN) ? clampF(id, p.f.w) : 0;
+  G.scores[id] = (G.scores[id]||0) + (right ? w : -w); G.fDone[id] = right ? "right" : "wrong"; commit();
+}
+function clampF(id, w){ return Math.min(Math.max(Math.round(+w||0),0), Math.max(G.scores[id]||0,0)); }
+function adjust(id, d){ G.scores[id] = (G.scores[id]||0) + d; commit(); }
+
+$("h-new").onclick = () => { const b = $("h-new"); if(b.dataset.armed){ delete b.dataset.armed; b.textContent = "New game"; newGame(); } else { b.dataset.armed = "1"; b.textContent = "Tap again for a new board"; setTimeout(() => { delete b.dataset.armed; b.textContent = "New game"; }, 3000); } };
+$("h-final").onclick = () => toFinal();
+document.addEventListener("keydown", e => {
+  if(role !== "host" || !G || /INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+  if(e.code === "KeyB" && G.phase === "clue" && !G.buzzOpen && !G.winner) openBuzzers();
+  if(e.code === "KeyY" && (G.winner || G.phase === "ddclue")) judge(true);
+  if(e.code === "KeyN" && (G.winner || G.phase === "ddclue")) judge(false);
+  if(e.code === "Space" && G.phase === "reveal"){ e.preventDefault(); backToBoard(); }
+});
+
+/* ---------- rendering ---------- */
+const nameOf = id => (P[id] && P[id].name) || "Player";
+function scoreStrip(host){
+  const ids = Object.keys(G ? G.scores : {}).filter(id => P[id]).sort((a,b) => (G.scores[b]||0)-(G.scores[a]||0));
+  host.innerHTML = ids.map(id => `<div class="sc${(G.scores[id]||0)<0?" neg":""}${G.picker===id?" pick":""}${id===me&&role==="player"?" you":""}"><span class="n">${esc(nameOf(id))}</span><span class="p">${money(G.scores[id]||0)}</span></div>`).join("") || `<span class="muted">No players yet. Everyone opens this page on their phone and enters the room code.</span>`;
+}
+function boardHTML(clickable){
+  let h = CATS.map(c => `<div class="cat">${esc(c)}</div>`).join("");
+  for(let r=0;r<5;r++) for(let c=0;c<6;c++){ const t = G.board[c][r]; h += `<button class="tile${t.used?" used":""}" type="button" data-c="${c}" data-r="${r}" ${t.used||!clickable?"disabled":""} aria-label="${esc(CATS[c])} for $${VALUES[r]}">${t.used?"":"$"+VALUES[r]}</button>`; }
+  return `<div class="board">${h}</div>`;
+}
+function curClue(){ return G && G.cur ? BANK[G.board[G.cur.c][G.cur.r].id] : null; }
+function render(){
+  if(!G && role){ if(role === "tv"){ $("tv-main").innerHTML = `<div class="stage"><p class="clue">Waiting for the host to start a game</p></div>`; } if(role==="player"){ $("p-main").innerHTML = `<p class="p-msg">You're in. Waiting for the host.</p>`; } return; }
+  if(role === "tv") renderTV(); else if(role === "host") renderHost(); else if(role === "player") renderPlayer();
+}
+
+function stageFor(view){
+  const q = curClue(), ph = G.phase;
+  if(ph === "lobby"){
+    const names = Object.keys(P).map(id => esc(nameOf(id))).join(" · ") || "Nobody yet";
+    return `<div class="stage"><div class="top">Open this page on your phone and enter room code <b>${esc(CODE)}</b></div><p class="clue">Players: ${names}</p></div>`;
+  }
+  if(ph === "dd"){ return `<div class="stage dd-splash"><p class="who">DAILY<br>DOUBLE</p><div class="top" style="color:#ffe">${esc(nameOf(G.picker))} is placing a wager</div></div>`; }
+  if(["clue","ddclue","reveal"].includes(ph) && q){
+    const top = `<div class="top">${esc(CATS[G.cur.c])} · ${esc(q.s)} · <b>${ph==="ddclue"||(ph==="reveal"&&G.board[G.cur.c][G.cur.r].dd) ? "Daily Double "+money(G.ddWager) : "$"+VALUES[G.cur.r]}</b></div>`;
+    let mid = `<p class="clue">${esc(q.q)}</p>`;
+    if(ph === "reveal") mid += `<p class="ans">${esc(q.a)}</p>` + (G.lastRight ? `<div class="top">${esc(nameOf(G.lastRight))} got it</div>` : "");
+    else if(ph === "ddclue") mid += `<div class="top">${esc(nameOf(G.picker))}, what's your answer?</div>`;
+    else if(G.winner) mid += `<p class="who">${esc(nameOf(G.winner))}</p>`;
+    else mid += `<div class="light${G.buzzOpen?" on":""}"><i></i>${G.buzzOpen ? "Buzzers open" : "Buzzers open in a moment"}</div>`;
+    if(G.locked && G.locked.length && ph === "clue") mid += `<div class="top">Locked out: ${G.locked.map(id => esc(nameOf(id))).join(", ")}</div>`;
+    return `<div class="stage">${top}${mid}</div>`;
+  }
+  const f = BANK[G.finalId];
+  if(ph === "fcat") return `<div class="stage"><div class="top">Final Jeopardy</div><p class="clue">${esc(CATS[f.c])}</p><div class="top">Lock in your wager on your phone</div></div>`;
+  if(ph === "fclue"){ const left = Math.max(0, 30 - Math.floor((Date.now() - G.fStart)/1000)); return `<div class="stage"><div class="top">Final Jeopardy · ${esc(CATS[f.c])}</div><p class="clue">${esc(f.q)}</p><div class="top"><b>${left}</b> seconds. Type your answer on your phone.</div></div>`; }
+  if(ph === "freveal" || ph === "over"){
+    const rows = Object.keys(P).map(id => { const p = P[id], a = p.f && p.f.n === G.fN ? p.f : {}; const st = G.fDone[id]; return `<div class="top">${esc(nameOf(id))}: <b>${esc(a.a || "no answer")}</b> ${st ? (st==="right"?"✓":"✗")+" "+money(clampF(id,a.w||0)) : ""}</div>`; }).join("");
+    let extra = "";
+    if(ph === "over"){ const top = Object.keys(G.scores).filter(id=>P[id]).sort((a,b)=>G.scores[b]-G.scores[a])[0]; extra = top ? `<p class="who">${esc(nameOf(top))} wins</p>` : ""; }
+    return `<div class="stage"><div class="top">Final Jeopardy · ${esc(CATS[f.c])}</div><p class="ans">${esc(f.a)}</p>${rows}${extra}</div>`;
+  }
+  return null;
+}
+
+function renderTV(){
+  $("tv-code").textContent = CODE;
+  $("tv-turn").textContent = G.phase === "board" && G.picker ? `${nameOf(G.picker)} picks` : "";
+  const st = G.phase === "board" ? null : stageFor("tv");
+  $("tv-main").innerHTML = st || boardHTML(false);
+  scoreStrip($("tv-scores"));
+}
+
+function renderHost(){
+  const q = curClue(), ph = G.phase; let h = "";
+  if(ph === "lobby"){
+    h = `<div class="row" style="justify-content:space-between"><div><b>Lobby.</b> <span class="muted">${Object.keys(P).length} joined. Players open this page on their phones and enter code ${esc(CODE)}. On the TV, open this page, enter the code, and tap Show the TV board.</span></div><button class="btn primary" id="h-start" type="button">Start the game</button></div>`;
+  } else if(ph === "board"){
+    h = `<div class="row" style="justify-content:space-between"><div><b>${esc(nameOf(G.picker))}</b> picks a tile on their phone. <span class="muted">You can also tap a tile below.</span></div><span class="muted">Daily Double is hidden on this board</span></div>`;
+  } else if(ph === "dd"){
+    h = `<div><b>Daily Double.</b> ${esc(nameOf(G.picker))} is entering a wager on their phone (max ${money(Math.max(G.scores[G.picker]||0,1000))}).</div><div class="row"><label for="h-ddw">Or enter it here</label><input id="h-ddw" class="txt-in" style="width:140px" type="number" min="5" step="100"><button class="btn primary" id="h-ddgo" type="button">Lock wager</button></div>`;
+  } else if((ph === "clue" || ph === "ddclue" || ph === "reveal") && q){
+    h = `<div class="muted">${esc(CATS[G.cur.c])} · ${esc(q.s)} · ${ph==="ddclue" ? "Daily Double "+money(G.ddWager)+" for "+esc(nameOf(G.picker)) : "$"+VALUES[G.cur.r]}</div><p class="clue">${esc(q.q)}</p><div class="secret">Answer (host only): ${esc(q.a)}${q.x ? `<span class="muted"> · also accept: ${esc(q.x)}</span>` : ""}</div>`;
+    if(ph === "clue"){
+      if(G.winner) h += `<div class="row"><b style="font-size:22px">${esc(nameOf(G.winner))} buzzed.</b><button class="btn good" id="h-y" type="button">Correct (Y)</button><button class="btn bad" id="h-n" type="button">Wrong (N)</button></div>`;
+      else h += `<div class="row">${G.buzzOpen ? `<span class="light on"><i></i>Buzzers open</span>` : `<button class="btn primary" id="h-open" type="button">Open buzzers now (B)</button>`}<button class="btn" id="h-rev" type="button">Nobody got it, show answer</button></div>`;
+    } else if(ph === "ddclue"){
+      h += `<div class="row"><button class="btn good" id="h-y" type="button">Correct (Y)</button><button class="btn bad" id="h-n" type="button">Wrong (N)</button></div>`;
+    } else {
+      h += `<div class="row"><button class="btn primary" id="h-back" type="button">Back to the board (Space)</button></div>`;
+    }
+  } else if(ph === "fcat" || ph === "fclue" || ph === "freveal" || ph === "over"){
+    const f = BANK[G.finalId];
+    h = `<div class="muted">Final Jeopardy · ${esc(CATS[f.c])}</div><p class="clue">${esc(f.q)}</p><div class="secret">Answer: ${esc(f.a)}${f.x ? ` · also accept: ${esc(f.x)}` : ""}</div>`;
+    const ws = Object.keys(P).map(id => { const p = P[id], a = p.f && p.f.n === G.fN ? p.f : null; const done = G.fDone[id];
+      return `<div class="prow"><span class="nm">${esc(nameOf(id))}</span><span class="fa">${ph==="fcat" ? (a && a.w!=null ? "wager locked" : "wagering…") : esc(a && a.a ? a.a : "no answer yet")} ${a && ph!=="fcat" ? "· "+money(clampF(id,a.w||0)) : ""}</span>${ph==="freveal" && !done ? `<button class="btn good sm" data-fj="${id}" data-r="1" type="button">Right</button><button class="btn bad sm" data-fj="${id}" data-r="0" type="button">Wrong</button>` : (done ? `<span class="pill">${done}</span>` : "")}</div>`; }).join("");
+    h += `<div class="plist">${ws}</div><div class="row">${ph==="fcat" ? `<button class="btn primary" id="h-fn" type="button">Show the clue</button>` : ph==="fclue" ? `<button class="btn primary" id="h-fn" type="button">Reveal answers</button>` : ph==="freveal" ? `<button class="btn primary" id="h-fn" type="button">Finish the game</button>` : `<button class="btn primary" id="h-again" type="button">Play again with a new board</button>`}</div>`;
+  }
+  const keepDD = $("h-ddw") ? $("h-ddw").value : "";
+  $("h-panel").innerHTML = h;
+  if($("h-ddw")) $("h-ddw").value = keepDD;
+  $("h-board").innerHTML = (ph === "board" || ph === "lobby") ? boardHTML(ph === "board") : "";
+  $("h-players").innerHTML = Object.keys(P).map(id => `<div class="prow"><span class="nm">${esc(nameOf(id))}${G.picker===id?' <span class="pill">picking</span>':""}</span><button class="btn sm" data-adj="${id}" data-d="-200" type="button">−200</button><span class="pt">${money(G.scores[id]||0)}</span><button class="btn sm" data-adj="${id}" data-d="200" type="button">+200</button><button class="btn sm" data-pk="${id}" type="button">Give pick</button><button class="btn sm" data-rm="${id}" type="button">Remove</button></div>`).join("") || `<span class="muted">Nobody has joined yet.</span>`;
+  const on = (id, fn) => { const el = $(id); if(el) el.onclick = fn; };
+  on("h-start", () => { const ids = Object.keys(P); if((!G.picker || !P[G.picker]) && ids.length) G.picker = ids[Math.floor(Math.random()*ids.length)]; G.phase = "board"; G.pickT = Date.now(); commit(); });
+  on("h-open", openBuzzers); on("h-y", () => judge(true)); on("h-n", () => judge(false)); on("h-rev", revealNow); on("h-back", backToBoard);
+  on("h-fn", fNext); on("h-again", () => newGame());
+  on("h-ddgo", () => { const v = $("h-ddw").value; if(v === "") return; G.ddWager = clampWager(G.picker, v); G.phase = "ddclue"; commit(); });
+  document.querySelectorAll("#h-board .tile").forEach(b => b.onclick = () => openTile(+b.dataset.c, +b.dataset.r));
+  document.querySelectorAll("[data-adj]").forEach(b => b.onclick = () => adjust(b.dataset.adj, +b.dataset.d));
+  document.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => { G.picker = b.dataset.pk; G.pickT = Date.now(); commit(); });
+  document.querySelectorAll("[data-rm]").forEach(b => b.onclick = async () => { const id = b.dataset.rm; if(!b.dataset.armed){ b.dataset.armed = "1"; b.textContent = "Tap to confirm"; return; } delete G.scores[id]; if(G.picker === id) G.picker = Object.keys(P).find(x => x !== id) || null; delete P[id]; removed.add(id); for(const c of conns){ if(c.pid === id){ try{ c.send({type:"kicked"}); }catch(e){} } } commit(); });
+  document.querySelectorAll("[data-fj]").forEach(b => b.onclick = () => fJudge(b.dataset.fj, b.dataset.r === "1"));
+}
+
+let pKey = "";
+function renderPlayer(){
+  $("p-me").textContent = (P[me] && P[me].name) || "";
+  scoreStrip($("p-scores"));
+  const ph = G.phase, q = curClue(), mine = myDoc;
+  let h = "", key = ph + "|" + (G.cur ? G.cur.c+"-"+G.cur.r : "") + "|" + G.token + "|" + G.buzzOpen + "|" + G.winner + "|" + (G.locked||[]).join(",") + "|" + G.picker + "|" + G.fN + "|" + JSON.stringify(G.board.map(c=>c.map(t=>t.used?1:0))) + "|" + JSON.stringify(G.fDone||{}) + "|" + G.ddWager;
+  if(key === pKey && ph !== "fclue") return; // keep inputs intact
+  pKey = key;
+  if(ph === "lobby") h = `<p class="p-msg">You're in.<br>Waiting for the host to start.</p>`;
+  else if(ph === "board"){
+    if(G.picker === me){
+      let g = CATS.map(c => `<div class="cat">${esc(c)}</div>`).join("");
+      for(let r=0;r<5;r++) for(let c=0;c<6;c++){ const t = G.board[c][r]; g += `<button class="tile${t.used?" used":""}" type="button" data-c="${c}" data-r="${r}" ${t.used?"disabled":""}>${t.used?"":VALUES[r]}</button>`; }
+      h = `<p class="p-msg">Your pick</p><div class="pgrid">${g}</div>`;
+    } else h = `<p class="p-msg">${esc(nameOf(G.picker))} is picking</p>`;
+  }
+  else if(ph === "dd"){
+    if(G.picker === me) h = `<p class="p-msg">Daily Double!</p><p class="p-clue">${esc(CATS[G.cur.c])}. Wager up to ${money(Math.max(G.scores[me]||0,1000))}.</p><input id="p-ddw" class="big-in" type="number" inputmode="numeric" min="5" step="100" value="${Math.min(1000, Math.max(G.scores[me]||0,1000))}"><button class="btn primary" id="p-ddgo" type="button">Lock it in</button>`;
+    else h = `<p class="p-msg">Daily Double.<br>${esc(nameOf(G.picker))} is wagering.</p>`;
+  }
+  else if((ph === "clue" || ph === "ddclue") && q){
+    const locked = (G.locked||[]).includes(me);
+    if(ph === "ddclue") h = `<p class="p-clue">${esc(q.q)}</p><p class="p-msg">${G.picker===me ? "Say your answer out loud" : esc(nameOf(G.picker))+" is answering"}</p>`;
+    else {
+      const won = G.winner === me;
+      const label = won ? "YOU'RE UP" : G.winner ? esc(nameOf(G.winner)) : locked ? "LOCKED" : G.buzzOpen ? "BUZZ" : "WAIT";
+      h = `<p class="p-clue">${esc(q.q)}</p><button id="buzz" class="${won?"won":""}" type="button" ${(!G.buzzOpen || locked || G.winner) ? "disabled" : ""}>${label}</button>${won ? `<p class="p-msg">Say your answer out loud</p>` : ""}`;
+    }
+  }
+  else if(ph === "reveal" && q) h = `<p class="p-clue">${esc(q.q)}</p><p class="p-msg" style="color:var(--brass)">${esc(q.a)}</p>${G.lastRight ? `<p class="p-msg" style="font-size:20px">${G.lastRight===me ? "You got it! You pick next." : esc(nameOf(G.lastRight))+" got it"}</p>` : ""}`;
+  else if(ph === "fcat"){
+    const f = BANK[G.finalId], mx = Math.max(G.scores[me]||0, 0), a = mine.f && mine.f.n === G.fN ? mine.f : null;
+    h = `<p class="p-msg">Final Jeopardy</p><p class="p-clue">${esc(CATS[f.c])}</p>` + (mx <= 0 ? `<p class="p-msg" style="font-size:20px">You need money in the bank to wager. You can still answer.</p>` : `<label for="p-fw" class="muted">Wager, up to ${money(mx)}</label><input id="p-fw" class="big-in" type="number" inputmode="numeric" min="0" max="${mx}" step="100" value="${a && a.w != null ? a.w : 0}"><button class="btn primary" id="p-fwgo" type="button">${a && a.w != null ? "Update wager" : "Lock wager"}</button>${a && a.w != null ? `<p class="muted" style="text-align:center">Locked at ${money(a.w)}</p>` : ""}`);
+  }
+  else if(ph === "fclue"){
+    const f = BANK[G.finalId], a = mine.f && mine.f.n === G.fN ? mine.f : {}; const left = Math.max(0, 30 - Math.floor((Date.now() - G.fStart)/1000));
+    if(!$("p-fa")){ h = `<p class="p-clue">${esc(f.q)}</p><label for="p-fa" class="muted">Your answer</label><input id="p-fa" class="txt-in" autocomplete="off" value="${esc(a.a||"")}"><button class="btn primary" id="p-fago" type="button">Send answer</button><p class="muted" id="p-fleft" style="text-align:center">${left} seconds left</p>`; }
+    else { $("p-fleft").textContent = left + " seconds left"; return; }
+  }
+  else if(ph === "freveal" || ph === "over"){
+    const f = BANK[G.finalId]; const st = G.fDone[me];
+    h = `<p class="p-msg" style="color:var(--brass)">${esc(f.a)}</p>${st ? `<p class="p-msg">${st === "right" ? "You got it!" : "Not this time"}</p>` : `<p class="p-msg" style="font-size:20px">The host is checking answers</p>`}`;
+    if(ph === "over"){ const top = Object.keys(G.scores).filter(id=>P[id]).sort((a,b)=>G.scores[b]-G.scores[a])[0]; if(top) h += `<p class="p-msg">${top===me ? "You win!" : esc(nameOf(top))+" wins"}</p>`; }
+  }
+  $("p-main").innerHTML = h;
+  document.querySelectorAll("#p-main .tile").forEach(b => b.onclick = () => { myDoc = Object.assign({}, myDoc, {pick:{c:+b.dataset.c, r:+b.dataset.r, n:Date.now(), t:G.pickT}}); writeMine(); b.disabled = true; });
+  const bz = $("buzz"); if(bz) bz.onclick = buzz;
+  const dd = $("p-ddgo"); if(dd) dd.onclick = () => { myDoc = Object.assign({}, myDoc, {dd:{n:G.ddN, amt:+$("p-ddw").value||0}}); writeMine(); dd.disabled = true; dd.textContent = "Locked"; };
+  const fw = $("p-fwgo"); if(fw) fw.onclick = () => { const mx = Math.max(G.scores[me]||0,0); const w = Math.min(Math.max(Math.round(+$("p-fw").value||0),0),mx); const prev = (myDoc.f&&myDoc.f.n===G.fN)?myDoc.f:{}; myDoc = Object.assign({}, myDoc, {f:Object.assign({}, prev, {n:G.fN, w})}); writeMine(); fw.textContent = "Locked at " + money(w); };
+  const fa = $("p-fago"); if(fa) fa.onclick = () => { const prev = (myDoc.f&&myDoc.f.n===G.fN)?myDoc.f:{w:0}; myDoc = Object.assign({}, myDoc, {f:Object.assign({}, prev, {n:G.fN, a:$("p-fa").value.trim().slice(0,80)})}); writeMine(); fa.textContent = "Sent. Tap again to change it."; };
+}
+function buzz(){
+  if(!G || !G.buzzOpen || G.winner || (G.locked||[]).includes(me)) return;
+  const b = $("buzz"); if(b){ b.disabled = true; b.textContent = "…"; }
+  try{ navigator.vibrate && navigator.vibrate(40); }catch(e){}
+  myDoc = Object.assign({}, myDoc, {buzz:{t:G.token, at:Date.now()}}); writeMine();
+}
+// Final Jeopardy countdown refresh
+setInterval(() => { if(G && G.phase === "fclue"){ if(role === "player") renderPlayer(); else if(role === "tv") renderTV(); } }, 1000);
+</script>
+</body>
+</html>
