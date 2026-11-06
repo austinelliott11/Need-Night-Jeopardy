@@ -262,6 +262,7 @@ header.top .logo{font-size:22px}
 <div class="sheet hidden" id="sheet"><div class="inner" id="sheet-inner"></div></div>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
 <script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 /* ===== Settings ===== */
@@ -273,7 +274,13 @@ const BUILTIN = [["C1-01",0,"Eragon",200,"Eragon's dragon is named for the color
 const BUILTIN_CATS = ["Fantasy & Sci-Fi Books","Star Wars","Video Games","Wilderness Survival","Anime","Deadliest Warrior & Animals"];
 const BASE = [200,400,600,800,1000];
 const COLORS = ["#ef5a4c","#ff9a3d","#f2cc4a","#b4e04c","#3fc46e","#2fd3c4","#4fb3ea","#6d84ff","#a86cf0","#f26cbf","#eef1ea","#c4915e"];   // red orange yellow lime green teal sky blue purple pink white tan
-const PREFIX = "nnj-live-v7-";
+const PREFIX = "nnj-live-v8-";
+/* Backup relay. Some WiFi (Airbnbs, hotels, mesh routers) blocks phones from talking straight to the laptop.
+   When that happens, messages go through a public relay instead. Phones switch automatically. */
+const RELAYS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
+const TOPIC = () => "stjeezy/v8/" + CODE;
+const RELAY_ONLY = /[?&]relay=1/.test(location.search);   // for testing the relay path
+let relayClients = [], relayLive = null, lastAt = 0;
 const BUZZ_WINDOW = 300;
 let BUZZ_MS = 10000, REBUZZ_MS = 7000, ANSWER_MS = 15000, DD_MS = 20000, VOTE_MS = 10000, PICK_MS = 30000, FINAL_MS = 30000, WAGER_MS = 25000, FWAGER_MS = 40000;
 const PACES = {
@@ -391,7 +398,7 @@ const SFX = {
   try{ const n = localStorage.getItem("nnj-name"); if(n) $("name").value = n; }catch(e){}
   if(typeof Peer === "undefined"){ $("status").textContent = "Couldn't load the game's connection library. Check your internet and reload."; return; }
   ["join-card","or","btn-host"].forEach(id => $(id).classList.remove("hidden"));
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host7") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host8") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ $("btn-host").textContent = "Resume hosting room " + saved.code; }
   $("status").textContent = code ? "Type your name and tap Join." : "Type your name, then join a room or host one.";
   // a phone that reloads mid-game (Safari does this in the background) rejoins on its own
@@ -410,7 +417,21 @@ document.addEventListener("visibilitychange", () => { if(document.visibilityStat
 
 /* ===== player networking ===== */
 let retryTimer = null, lastPong = 0, pingTimer = null, kicked = false;
-function setConn(t){ const b = $("conn"); b.textContent = t || ""; b.classList.toggle("hidden", !t); }
+function setConn(t, force){ if(t && !force && relayAlive()) t = ""; const b = $("conn"); b.textContent = t || ""; b.classList.toggle("hidden", !t); }
+const relayAlive = () => !isHost && !!relayLive && relayLive.connected && Date.now() - lastPong < 10000;
+function playerRelay(i){
+  if(isHost || kicked || typeof mqtt === "undefined") return;
+  i = i || 0; if(i >= RELAYS.length) i = 0;
+  let c; try{ c = mqtt.connect(RELAYS[i], {connectTimeout: 7000, reconnectPeriod: 4000, keepalive: 20, clean: true, clientId: "stjp-" + me + "-" + Math.random().toString(36).slice(2, 6)}); }catch(e){ return; }
+  let gotIn = false;
+  const fail = setTimeout(() => { if(!gotIn){ try{ c.end(true); }catch(e){} if(relayLive === c) relayLive = null; playerRelay(i + 1); } }, 9000);
+  c.on("connect", () => {
+    gotIn = true; clearTimeout(fail); relayLive = c;
+    c.subscribe([TOPIC() + "/s", TOPIC() + "/p/" + me], () => { if(!(conn && conn.open)) send({type: "hello", name: myName, color: myColorPref()}); });
+  });
+  c.on("message", (topic, buf) => { if(relayLive !== c) return; let m; try{ m = JSON.parse(buf.toString()); }catch(e){ return; } onHost(m); });
+  c.on("error", () => {});
+}
 $("btn-join").onclick = async () => {
   const name = needName(); if(!name) return;
   const code = $("code").value.trim().toUpperCase();
@@ -419,7 +440,7 @@ $("btn-join").onclick = async () => {
   try{ localStorage.setItem("nnj-joined", JSON.stringify({code, at: Date.now()})); history.replaceState(null, "", location.pathname + "?code=" + code); }catch(e){}
   $("g-code").textContent = CODE; $("g-me").textContent = myName;
   $("main").innerHTML = `<p class="msg">Joining room ${esc(CODE)}…</p>`;
-  await loadIce(); connect();
+  await loadIce(); if(!RELAY_ONLY) connect(); playerRelay(0);
   clearInterval(pingTimer); pingTimer = setInterval(() => { if(conn && conn.open){ send({type:"ping"}); if(lastPong && Date.now() - lastPong > 9000){ setConn("Connection dropped. Reconnecting…"); connect(true); } } }, 3000);
 };
 $("code").addEventListener("keydown", e => { if(e.key === "Enter") $("btn-join").click(); });
@@ -442,7 +463,7 @@ function connect(fresh){
     if(conn){ const old = conn; conn = null; try{ old.close(); }catch(e){} }
     const c = pr.connect(PREFIX + CODE, { reliable: true });
     conn = c;
-    c.on("open", () => { if(conn !== c) return; attempts = 0; setConn(""); lastPong = Date.now(); send({type:"hello", name: myName, color: myColorPref()}); });
+    c.on("open", () => { if(conn !== c) return; attempts = 0; setConn("", true); lastPong = Date.now(); send({type:"hello", name: myName, color: myColorPref()}); });
     c.on("data", m => { if(conn === c) onHost(m); });
     c.on("close", () => { if(conn !== c) return; setConn("Connection lost. Reconnecting…"); retry(1500); });
     c.on("error", () => { if(conn !== c) return; retry(2000); });
@@ -450,14 +471,25 @@ function connect(fresh){
   if(pr.open) go(); else pr.once("open", go);
 }
 /* watchdog: if nothing is connected and nothing has been tried lately, try again */
-setInterval(() => { if(isHost || !myName || kicked) return; if(conn && conn.open) return; if(Date.now() - lastAttempt > 7000){ setConn("Reconnecting…"); connect(true); } }, 2000);
+setInterval(() => {
+  if(isHost || !myName || kicked) return;
+  if(relayAlive()) setConn("", true);
+  if(conn && conn.open) return;
+  if(!relayAlive() && relayLive && Date.now() - lastPong > 15000){ try{ relayLive.end(true); }catch(e){} relayLive = null; playerRelay(0); }   // relay went quiet, start it over
+  if(RELAY_ONLY) return;
+  if(Date.now() - lastAttempt > 7000){ setConn("Reconnecting…"); connect(true); }
+}, 2000);
 function retry(ms){ clearTimeout(retryTimer); if(kicked) return; retryTimer = setTimeout(() => connect(true), ms); }
-function send(m){ m.pid = me; if(conn && conn.open){ try{ conn.send(m); }catch(e){} } }
+function send(m){
+  m.pid = me;
+  if(conn && conn.open){ try{ conn.send(m); return; }catch(e){} }
+  if(relayLive && relayLive.connected){ try{ relayLive.publish(TOPIC() + "/h", JSON.stringify(m)); }catch(e){} }
+}
 function onHost(m){
   if(!m || typeof m !== "object") return;
   lastPong = Date.now();
-  if(m.type === "state"){ clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
-  else if(m.type === "kicked"){ try{ localStorage.removeItem("nnj-joined"); }catch(e){} kicked = true; const c = conn; conn = null; clearInterval(pingTimer); clearTimeout(retryTimer); try{ c && c.close(); }catch(e){} clearTimeout(retryTimer); setConn("The host removed you from this game. Reload the page to rejoin."); }
+  if(m.type === "state"){ if(m.G && m.G.at && m.G.at <= lastAt && G) return; lastAt = (m.G && m.G.at) || lastAt; clockOff = Date.now() - (m.G.at || Date.now()); if(!G || G.phase !== m.G.phase){ try{ localStorage.setItem("nnj-joined", JSON.stringify({code: CODE, at: Date.now()})); }catch(e){} } const prev = G; G = m.G; P = m.P || {}; if(!P[me]) send({type:"hello", name: myName, color: myColorPref()}); render(); }
+  else if(m.type === "kicked"){ try{ localStorage.removeItem("nnj-joined"); }catch(e){} kicked = true; try{ relayLive && relayLive.end(true); }catch(e){} relayLive = null; const c = conn; conn = null; clearInterval(pingTimer); clearTimeout(retryTimer); try{ c && c.close(); }catch(e){} clearTimeout(retryTimer); setConn("The host removed you from this game. Reload the page to rejoin.", true); }
 }
 /* every action goes through here, host or not */
 function act(m){ if(!isHost) send(m); }
@@ -473,7 +505,7 @@ $("btn-host").onclick = async () => {
   try{ played = new Set(JSON.parse(localStorage.getItem("nnj-played") || "[]")); }catch(e){}
   await Promise.all([loadBank(), loadIce()]);
   DF = buildDF(BANK); KNOWN = buildKnown(BANK);
-  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host7") || "null"); }catch(e){}
+  let saved = null; try{ saved = JSON.parse(localStorage.getItem("nnj-host8") || "null"); }catch(e){}
   if(saved && saved.G && saved.G.phase !== "over" && Date.now() - (saved.G.at||0) < 6*3600*1000){ CODE = saved.code; G = saved.G; P = saved.P || {}; restoring = true; }
   else { CODE = newCode(); P = {}; G = null; newGame(); }
   if(G.board.some(col => col.some(t => !byId(t.id))) || !byId(G.finalId)){ const keepP = P; newGame(); P = keepP; }
@@ -519,6 +551,7 @@ async function loadBank(){
 function parseCSV(t){ const out = []; let row = [], f = "", q = false; for(let i=0;i<t.length;i++){ const ch = t[i]; if(q){ if(ch === '"'){ if(t[i+1] === '"'){ f += '"'; i++; } else q = false; } else f += ch; } else if(ch === '"') q = true; else if(ch === ","){ row.push(f); f = ""; } else if(ch === "\n"){ row.push(f); out.push(row); row = []; f = ""; } else if(ch !== "\r") f += ch; } if(f || row.length){ row.push(f); out.push(row); } return out; }
 
 function openRoom(){
+  hostRelays();
   try{ if(peer && !peer.destroyed) peer.destroy(); }catch(e){}
   peer = new Peer(PREFIX + CODE, peerOpts());
   peer.on("open", () => { idTries = 0; restoring = false; G.net = "open"; commit(); });
@@ -579,11 +612,30 @@ function broadcast(){
   bTimer = setTimeout(() => {
     const m = stateMsg();
     for(const c of conns){ try{ if(c.open) c.send(m); }catch(e){} }
-    try{ localStorage.setItem("nnj-host7", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
+    relayPub("/s", m, true);
+    try{ localStorage.setItem("nnj-host8", JSON.stringify({code: CODE, G, P})); localStorage.setItem("nnj-played", JSON.stringify([...played].slice(-3000))); }catch(e){}
   }, 10);
 }
 function commit(){ G.at = Date.now(); render(); broadcast(); }
 function connOf(pid){ for(const c of conns) if(c.pid === pid && c.open) return c; return null; }
+function relayPub(sub, m, retain){ const s = JSON.stringify(m); for(const c of relayClients) if(c.connected){ try{ c.publish(TOPIC() + sub, s, {qos: 0, retain: !!retain}); }catch(e){} } }
+function sendTo(pid, m){ const c = connOf(pid); if(c){ try{ c.send(m); return; }catch(e){} } relayPub("/p/" + pid, m); }
+const relayConn = pid => ({pid, open: true, relay: true, send: m => relayPub("/p/" + pid, m)});
+let relayCode = "";
+function hostRelays(){
+  if(typeof mqtt === "undefined") return;
+  if(relayClients.length){ relaySubscribe(); return; }
+  for(const u of RELAYS){
+    let c; try{ c = mqtt.connect(u, {connectTimeout: 8000, reconnectPeriod: 3000, keepalive: 20, clean: true, clientId: "stjh-" + Math.random().toString(36).slice(2, 10)}); }catch(e){ continue; }
+    c.on("connect", () => { c._sub = ""; relaySubscribe(); broadcast(); render(); });
+    c.on("message", (topic, buf) => { let m; try{ m = JSON.parse(buf.toString()); }catch(e){ return; } if(!m || !m.pid) return; handle(relayConn(String(m.pid).slice(0, 24)), m); });
+    c.on("error", () => {}); c.on("close", () => render());
+    relayClients.push(c);
+  }
+  setInterval(() => { if(G) relayPub("/s", {type: "pong"}); }, 4000);   // heartbeat so phones know the relay is alive
+}
+function relaySubscribe(){ for(const c of relayClients) if(c.connected && c._sub !== CODE){ if(c._sub) try{ c.unsubscribe("stjeezy/v8/" + c._sub + "/h"); }catch(e){} c.subscribe(TOPIC() + "/h"); c._sub = CODE; } }
+const relayCount = () => relayClients.filter(c => c.connected).length;
 const inGame = id => id in G.scores && P[id];
 
 const colorFree = (col, pid) => !Object.entries(P).some(([id, p]) => id !== pid && p.color === col);
@@ -1054,7 +1106,8 @@ function renderTV(){
   const ph = G.phase, url = joinURL(), shortUrl = (location.host + location.pathname).replace(/\/index\.html$/, "/").replace(/\/$/, "");
   $("tv-join").innerHTML = ph === "lobby" ? "" : `<span>Join on your phone<br><b>${esc(shortUrl)}</b></span><span class="codechip">${esc(CODE)}</span><span class="qr">${qrSVG(url, 3)}</span>`;
   const net = $("tv-net"), nt = G.net === "open" ? "" : G.net === "reclaiming" ? "Reopening your room so phones can reconnect…" : G.net === "trouble" ? "Network trouble. Retrying…" : G.net === "reconnecting" ? "Reconnecting…" : "Opening the room…";
-  net.textContent = nt; net.classList.toggle("hidden", !nt);
+  const shown = nt && !(relayCount() && G.net !== "trouble") ? nt : (G.net !== "open" && !relayCount() ? nt : "");
+  net.textContent = shown; net.classList.toggle("hidden", !shown);
   const ids = players();
   const bar = () => G.deadline ? `<div class="tbar tv"><i data-dl></i></div>` : "";
   let h = "";
@@ -1118,7 +1171,7 @@ function openMenu(){
   $("sheet-inner").innerHTML = `<div class="row"><b class="grow" style="font-size:20px">Players and game</b><button class="btn sm" id="m-close" type="button">Done</button></div>
     ${ids.map(id => `<div class="prow" style="--c:${colorOf(id)}"><span class="nm" style="color:${colorOf(id)}">${esc(nameOf(id))}</span><input class="pt-in" data-set="${id}" type="number" inputmode="numeric" step="100" value="${G.scores[id]||0}" aria-label="Score for ${esc(nameOf(id))}"><button class="btn sm" data-adj="${id}" data-d="-100" type="button">−100</button><button class="btn sm" data-adj="${id}" data-d="100" type="button">+100</button>${G.phase === "board" && G.picker !== id ? `<button class="btn sm" data-pk="${id}" type="button">Give pick</button>` : ""}<button class="btn sm" data-rm="${id}" type="button">Remove</button></div>`).join("")}
     <div class="settings"><label><input type="checkbox" id="m-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud</b></span></label><label><input type="checkbox" id="m-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy</b> after round one</span></label></div>
-    <span class="muted" style="font-size:14px">Room ${esc(CODE)} · ${conns.size} phone${conns.size === 1 ? "" : "s"} connected · questions from ${esc(G.src)}</span>
+    <span class="muted" style="font-size:14px">Room ${esc(CODE)} · ${conns.size} direct connection${conns.size === 1 ? "" : "s"} · backup relay ${relayCount() ? "on" : "off"} · questions from ${esc(G.src)}</span>
     <button class="btn wide" id="m-share" type="button">Share invite link</button>
     ${["board","clue","reveal","dd","ddclue"].includes(G.phase) ? `<button class="btn wide" id="m-final" type="button">Skip to Final Jeopardy</button>` : ""}
     <button class="btn wide bad" id="m-new" type="button">New game, new questions</button>`;
@@ -1131,7 +1184,7 @@ function openMenu(){
   document.querySelectorAll("[data-pk]").forEach(b => b.onclick = () => { G.picker = b.dataset.pk; commit(); openMenu(); });
   document.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => {
     if(!b.dataset.armed){ b.dataset.armed = "1"; b.textContent = "Tap to confirm"; return; }
-    const id = b.dataset.rm; removed.add(id); const c = connOf(id); if(c) try{ c.send({type:"kicked"}); }catch(e){}
+    const id = b.dataset.rm; removed.add(id); sendTo(id, {type:"kicked"});
     delete P[id]; delete G.scores[id]; G.locked = G.locked.filter(x => x !== id);
     const wasPicker = G.picker === id;
     if(G.picker === id) G.picker = Object.keys(G.scores).find(x => P[x]) || null;
