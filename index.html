@@ -151,6 +151,8 @@ header.top .logo{font-size:22px}
 .mpick{cursor:pointer} .mpick span{font-family:var(--display);font-weight:900;font-size:clamp(18px,1.8vw,30px)}
 .mpick.on{outline:3px solid #fff;outline-offset:2px;background:#1d2f3d}
 .chipx{background:none;border:0;color:var(--mute);font-size:15px;padding:0 0 0 4px;cursor:pointer}
+.hostans{background:#2a2310;border:1px solid #5a4a26;border-radius:8px;padding:6px 12px;font-size:clamp(14px,1.3vw,22px);color:#f3e2b5;margin-right:auto;max-width:60%}
+.hostans b{color:var(--brass)}
 /* answer box + timers */
 #ansbox{background:var(--board);border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
 #ans-clue{margin:0;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:17px;line-height:1.15;text-align:center}
@@ -293,7 +295,7 @@ const BUILTIN_CATS = ["Fantasy & Sci-Fi Books","Star Wars","Video Games","Wilder
 const BASE = [200,400,600,800,1000];
 const COLORS = ["#ef5a4c","#ff9a3d","#f2cc4a","#b4e04c","#3fc46e","#2fd3c4","#4fb3ea","#6d84ff","#a86cf0","#f26cbf","#eef1ea","#c4915e"];   // red orange yellow lime green teal sky blue purple pink white tan
 const PREFIX = "nnj-live-v9-";
-const BUILD = "1793938963";
+const BUILD = "1793939357";
 /* Backup relay. Some WiFi (Airbnbs, hotels, mesh routers) blocks phones from talking straight to the laptop.
    When that happens, messages go through a public relay instead. Phones switch automatically. */
 const RELAYS = ["wss://broker.emqx.io:8084/mqtt", "wss://broker.hivemq.com:8884/mqtt"];
@@ -642,7 +644,7 @@ function buildBoard(round, usedIds){
   return board;
 }
 function newGame(){
-  const settings = Object.assign({read: true, dj: true, pace: "normal", mode: "phones", voice: (() => { try{ return localStorage.getItem("nnj-voice") || ""; }catch(e){ return ""; } })()}, G && G.settings ? G.settings : {});
+  const settings = Object.assign({read: true, dj: true, pace: "normal", mode: "phones", peek: (() => { try{ return localStorage.getItem("nnj-peek") !== "0"; }catch(e){ return true; } })(), voice: (() => { try{ return localStorage.getItem("nnj-voice") || ""; }catch(e){ return ""; } })()}, G && G.settings ? G.settings : {});
   const usedIds = new Set(), board = buildBoard(1, usedIds);
   const fq = shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id) && !played.has(q.id)))[0] || shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id)))[0];
   usedIds.add(fq.id);
@@ -1169,6 +1171,12 @@ function renderScores(target){
 function tick(p, from, to){ const t0 = now(), d = 650; const step = t => { const k = Math.min(1, (t - t0)/d); p.textContent = money(Math.round(from + (to - from) * (1 - Math.pow(1-k, 3)))); if(k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }
 
 /* ===== host controls ===== */
+/* laptop-only: the host sees the answer in the control bar before revealing it to the room */
+function hostAns(q){
+  if(!q || G.flipped) return "";
+  if(G.settings.peek === false) return `<button class="btn sm" id="hb-peek" type="button">Show me the answer<kbd>H</kbd></button>`;
+  return `<span class="hostans">Answer: <b>${esc(q.a)}</b>${q.x ? ` <span class="muted">also: ${esc(q.x)}</span>` : ""}</span><button class="btn sm" id="hb-peek" type="button">Hide<kbd>H</kbd></button>`;
+}
 function renderHostBar(){
   const bar = $("tv-ctrl"); if(!isHost) return;
   const ph = G.phase, k = x => `<kbd>${x}</kbd>`; let b = "";
@@ -1176,10 +1184,10 @@ function renderHostBar(){
   const man = isManual();
   if(ph === "lobby" && man) b = `<span class="muted">${n ? "Everyone added?" : "Add at least one player."}</span><button class="btn primary" id="hb-start" type="button" ${n ? "" : "disabled"}>Start the game${k("Space")}</button>`;
   else if(ph === "board" && man) b = `<span class="muted">${esc(nameOf(G.picker))} picks. Click their tile.</span>`;
-  else if(ph === "mclue") b = `<span class="muted">${G.flipped ? "Click ✓ if someone had it, or move on." : "Click ✓ or ✗ next to whoever answers."}</span>${G.flipped ? `<button class="btn primary" id="hb-mnext" type="button">Next${k("Space")}</button>` : `<button class="btn primary" id="hb-mflip" type="button">Show answer${k("Space")}</button><button class="btn" id="hb-mnobody" type="button">Nobody got it${k("N")}</button>`}`;
+  else if(ph === "mclue") b = `${hostAns(curQ())}<span class="muted">${G.flipped ? "Click ✓ if someone had it, or move on." : "Click ✓ or ✗ next to whoever answers."}</span>${G.flipped ? `<button class="btn primary" id="hb-mnext" type="button">Next${k("Space")}</button>` : `<button class="btn primary" id="hb-mflip" type="button">Show answer${k("Space")}</button><button class="btn" id="hb-mnobody" type="button">Nobody got it${k("N")}</button>`}`;
   else if(ph === "mdd") b = `<span class="muted">Pick who's playing, type the wager, then show the clue.</span>`;
   else if(ph === "fcat" && man) b = `<span class="muted">Type each wager, then</span><button class="btn primary" id="hb-fclue" type="button">Show the clue${k("Space")}</button>`;
-  else if(ph === "fclue" && man) b = `<button class="btn primary" id="hb-frev" type="button">Show the answer${k("Space")}</button>`;
+  else if(ph === "fclue" && man) b = `${hostAns(byId(G.finalId))}<button class="btn primary" id="hb-frev" type="button">Show the answer${k("Space")}</button>`;
   else if(ph === "freveal" && man) b = `<span class="muted">Mark each player Right or Wrong.</span><button class="btn primary" id="hb-finish" type="button" ${fAllJudged() ? "" : "disabled"}>Show the winner${k("Space")}</button>`;
   else if(ph === "lobby") b = `<span class="muted">Anyone can tap Start on their phone.</span><button class="btn primary" id="hb-start" type="button" ${n ? "" : "disabled"}>${n ? "Start the game" : "Waiting for players"}${k("Space")}</button>`;
   else if(ph === "board") b = `<span class="muted">${esc(nameOf(G.picker))} picks on their phone. You can also click a tile.</span>`;
@@ -1198,6 +1206,7 @@ function renderHostBar(){
   on("hb-y", () => overrule(true)); on("hb-n", () => overrule(false)); on("hb-next", backToBoard);
   on("hb-ddauto", () => lockDD(1000));
   on("hb-hints", fAllHints = () => fAcceptHints()); on("hb-fclue", finalClue); on("hb-frev", finalReveal); on("hb-finish", finish); on("hb-again", () => { newGame(); commit(); });
+  on("hb-peek", () => { G.settings.peek = G.settings.peek === false; try{ localStorage.setItem("nnj-peek", G.settings.peek ? "1" : "0"); }catch(e){} render(); });
   on("hb-mflip", mFlip); on("hb-mnext", mNext); on("hb-mnobody", mNobody);
   on("hb-menu", openMenu);
 }
@@ -1208,6 +1217,7 @@ function hostKey(e){
   if(k === " " || k === "enter"){ click("hb-start") || click("hb-next") || click("hb-mflip") || click("hb-mnext") || click("hb-fclue") || click("hb-frev") || click("hb-finish"); }
   else if(k === "b") click("hb-open"); else if(k === "n"){ click("hb-nobody") || click("hb-mnobody"); }
   else if(k === "a") click("hb-hints");
+  else if(k === "h") click("hb-peek");
   else if(k === "y") click("hb-y"); else if(k === "x") click("hb-n"); else if(k === "m") click("hb-menu");
 }
 document.addEventListener("keydown", hostKey);
