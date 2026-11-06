@@ -138,6 +138,10 @@ header.top .logo{font-size:22px}
 .seg button{flex:1;background:transparent;color:var(--ink);border:0;padding:10px 6px;font-weight:700;font-size:16px}
 .seg button+button{border-left:1px solid #3a5263}
 .seg button.on{background:var(--brass);color:#1a1206}
+.wrongword{color:#ff5a4f;font-family:var(--stencil);letter-spacing:.06em;margin-right:.3em}
+.tv-status .go{color:var(--blood);font-family:var(--stencil);letter-spacing:.04em}
+.voicerow{display:flex;gap:8px;align-items:center}
+.voicerow select{flex:1;min-width:0;font-family:var(--body);font-size:16px;padding:8px;border-radius:8px;border:1px solid #3a5263;background:#0b1116;color:var(--ink)}
 /* answer box + timers */
 #ansbox{background:var(--board);border:2px solid var(--brass);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px}
 #ans-clue{margin:0;font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:17px;line-height:1.15;text-align:center}
@@ -172,27 +176,31 @@ header.top .logo{font-size:22px}
 .qr{background:#fff;border-radius:8px;padding:6px;line-height:0}
 .qr svg{width:clamp(64px,7vw,120px);height:auto}
 #tv-net{margin:0;text-align:center;color:#ffd27a;background:#3a2c12;border-radius:8px;padding:6px;font-size:clamp(14px,1.3vw,22px)}
-#tv-main{min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:center;gap:2vh}
-#tv .board{height:100%;max-height:none;gap:.5vw;padding:.5vw}
+#tv-main{min-height:0;overflow:auto;display:flex;flex-direction:column;justify-content:safe center;gap:2vh}
+#tv .board{flex:1;height:auto;min-height:0;max-height:none;gap:.5vw;padding:.5vw}
 #tv .cat{font-size:clamp(13px,1.55vw,30px);min-height:9vh;padding:.6vh .5vw}
-#tv .tile{font-size:clamp(22px,4vw,76px);border-radius:6px}
+#tv .tile{font-size:clamp(18px,min(4vw,6.2vh),76px);border-radius:6px;min-height:0}
+#tv .board{grid-template-rows:auto repeat(5,minmax(0,1fr))}
+#tv .cat{min-height:min(9vh,80px)}
 #tv .tile:not(.used):hover{background:var(--tile-hi)}
 .tv-banner{font-family:var(--display);font-weight:800;text-transform:uppercase;text-align:center;font-size:clamp(22px,2.6vw,46px);margin:0}
-.tv-clue{background:var(--board);border-radius:16px;padding:4vh 4vw;display:flex;flex-direction:column;gap:3vh;align-items:center;text-align:center;flex:1;justify-content:center;min-height:0}
+.tv-clue{background:var(--board);border-radius:16px;padding:3vh 4vw;display:flex;flex-direction:column;gap:2.4vh;align-items:center;text-align:center;flex:1 1 auto;justify-content:center}
 .tv-clue .meta{font-size:clamp(16px,1.8vw,32px)}
-.tv-clue .clue{font-size:clamp(30px,4.6vw,92px);max-width:24ch}
+.tv-clue .clue{font-size:clamp(28px,min(4.4vw,8vh),92px);max-width:26ch}
+.tv-clue .clue.long{font-size:clamp(24px,min(3.5vw,6.2vh),72px);max-width:32ch}
+.tv-clue .clue.xlong{font-size:clamp(20px,min(2.9vw,5vh),58px);max-width:38ch}
 .tv-clue .ans{font-size:clamp(28px,3.6vw,68px)}
 .tv-clue .ans small{font-size:clamp(14px,1.5vw,26px)}
 .tv-status{font-family:var(--display);font-weight:800;text-transform:uppercase;text-align:center;font-size:clamp(22px,3vw,56px);margin:0;min-height:1.1em}
 .tv-status.go{color:var(--blood);font-family:var(--stencil);letter-spacing:.06em}
 .tv-lobby{display:grid;grid-template-columns:1fr 1fr;gap:3vw;align-items:center}
-.tv-lobby .step{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(20px,2.4vw,44px);margin:0;line-height:1.1}
+.tv-lobby .step{font-family:var(--display);font-weight:800;text-transform:uppercase;font-size:clamp(18px,min(2.4vw,4vh),44px);margin:0;line-height:1.1}
 .tv-lobby .url{font-family:var(--body);font-weight:700;color:var(--brass);font-size:clamp(16px,1.8vw,32px);word-break:break-all;margin:0}
 .tv-lobby .bigqr{background:#fff;border-radius:14px;padding:14px;line-height:0;justify-self:center}
-.tv-lobby .bigqr svg{width:clamp(180px,24vh,320px);height:auto}
-.tv-lobby .bigcode{font-size:clamp(80px,11vw,200px);text-align:left}
+.tv-lobby .bigqr svg{width:clamp(140px,24vh,320px);height:auto}
+.tv-lobby .bigcode{font-size:clamp(64px,min(11vw,17vh),200px);text-align:left}
 #tv .chips .chip{font-size:clamp(16px,1.6vw,28px);padding:.6vh 1vw}
-#tv .settings{max-width:900px}
+#tv .settings{max-width:900px;gap:8px;padding:10px 14px}
 #tv .splash .who{font-size:clamp(60px,10vw,190px)}
 #tv .splash{flex:1;justify-content:center}
 #tv .splash .meta{font-size:clamp(16px,2vw,36px)}
@@ -520,7 +528,7 @@ function resumeTimers(){
   if(ph === "roundend") return void setTimeout(startRound2, 1500);
   if(ph === "clue" && !G.buzzOpen && !G.winner) return void setTimeout(openBuzzers, 1500);
   const fn = {buzz: nobody, answer: () => submitGuess(G.phase === "ddclue" ? G.picker : G.winner, ""), pause: openBuzzers,
-    next: backToBoard, pick: autoPick,
+    next: backToBoard,
     wager: () => ph === "dd" ? lockDD(1000) : finalClue(), final: finalReveal, winner: finish}[k];
   if(fn){ deadline(left, k, fn); G.dlLen = len; commit(); }
 }
@@ -592,7 +600,7 @@ function buildBoard(round, usedIds){
   return board;
 }
 function newGame(){
-  const settings = Object.assign({read: true, dj: true, pace: "normal"}, G && G.settings ? G.settings : {});
+  const settings = Object.assign({read: true, dj: true, pace: "normal", voice: (() => { try{ return localStorage.getItem("nnj-voice") || ""; }catch(e){ return ""; } })()}, G && G.settings ? G.settings : {});
   const usedIds = new Set(), board = buildBoard(1, usedIds);
   const fq = shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id) && !played.has(q.id)))[0] || shuffle(BANK.filter(q => q.v === 1000 && !usedIds.has(q.id)))[0];
   usedIds.add(fq.id);
@@ -718,12 +726,28 @@ function lockDD(amt){
 
 /* reading the clue */
 let readTimer = null;
+/* voices: natural ones first, novelty Mac voices hidden */
+const NOVELTY = /^(albert|bad news|bahh|bells|boing|bubbles|cellos|fred|good news|jester|junior|organ|ralph|superstar|trinoids|whisper|wobble|zarvox|kathy|grandma|grandpa|rocko|eddy|flo|reed|sandy|shelley)\b/i;
+function voiceRank(v){ const n = v.name; let s = 0;
+  if(/premium/i.test(n)) s += 100; if(/enhanced/i.test(n)) s += 80; if(/neural|natural|online/i.test(n)) s += 70;
+  if(/^google us english/i.test(n)) s += 60; else if(/^google uk english/i.test(n)) s += 50;
+  if(/^(ava|zoe|evan|nathan|allison|tom|susan|joelle|noelle|samantha|daniel|serena|aria|jenny|guy|michelle)\b/i.test(n)) s += 30;
+  if(/^en[-_]US/i.test(v.lang)) s += 10; else if(/^en[-_](GB|AU|IE|CA)/i.test(v.lang)) s += 5;
+  return s; }
+function voiceList(){ try{ return speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang) && !NOVELTY.test(v.name)).sort((a, b) => voiceRank(b) - voiceRank(a)); }catch(e){ return []; } }
+function pickVoice(){ const list = voiceList(); const want = G && G.settings && G.settings.voice; return list.find(v => v.name === want) || list[0] || null; }
+try{ speechSynthesis.onvoiceschanged = () => { if(isHost && G && (G.phase === "lobby" || !$("sheet").classList.contains("hidden"))) render(); }; }catch(e){}
+function voiceSelect(id){ const list = voiceList(), cur = pickVoice(); if(!list.length) return `<span class="muted">This browser has no voices. Try Chrome.</span>`;
+  return `<div class="voicerow"><select id="${id}" aria-label="Reader voice">${list.slice(0, 25).map(v => `<option value="${esc(v.name)}"${cur && v.name === cur.name ? " selected" : ""}>${esc(v.name.replace(/ \(English \((United States|United Kingdom)\)\)/, ""))}${v.localService ? "" : " (online)"}</option>`).join("")}</select><button class="btn sm" type="button" data-testvoice="1">Test</button></div>`; }
+function wireVoice(id){ const s = $(id); if(s) s.onchange = () => { G.settings.voice = s.value; try{ localStorage.setItem("nnj-voice", s.value); }catch(e){} commit(); sampleVoice(); };
+  document.querySelectorAll("[data-testvoice]").forEach(b => b.onclick = sampleVoice); }
+function sampleVoice(){ const was = G.settings.read; G.settings.read = true; speak("This Pokémon evolves into Charizard. Buzz in now."); G.settings.read = was; }
 function speak(text, done){
   if(!G.settings.read || !("speechSynthesis" in window)){ return false; }
   try{
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text); u.rate = 1.02; u.lang = "en-US";
-    const v = speechSynthesis.getVoices().filter(v => /^en(-|_)US/i.test(v.lang)); if(v.length) u.voice = v.find(x => /natural|google|samantha|aria|jenny|guy/i.test(x.name)) || v[0];
+    const v = pickVoice(); if(v){ u.voice = v; u.lang = v.lang; } u.rate = /^google/i.test(v && v.name || "") ? 1.0 : 1.02;
     if(done){ let fired = false; const fin = () => { if(!fired){ fired = true; done(); } }; u.onend = fin; u.onerror = fin; clearTimeout(readTimer); readTimer = setTimeout(fin, Math.min(15000, 2500 + text.length * 85)); }
     speechSynthesis.speak(u); return true;
   }catch(e){ return false; }
@@ -820,14 +844,14 @@ function backToBoard(){
     return;
   }
   if(!inGame(G.picker)) G.picker = players()[0] || null;
-  G.phase = "board"; G.token = Date.now(); deadline(PICK_MS, "pick", autoPick); commit();
+  G.phase = "board"; G.token = Date.now(); deadline(0); commit();
 }
 function autoPick(){ if(G.phase !== "board") return; const open = []; G.board.forEach((col, c) => col.forEach((t, r) => { if(!t.used) open.push([c, r]); })); open.sort((a, b) => a[1] - b[1]); if(open.length) openTile(...open[0]); }
 function startRound2(){
   if(G.phase !== "roundend") return;
   const used = new Set(G.usedIds); G.round = 2; G.board = buildBoard(2, used); G.usedIds = [...used];
   const ids = players(); if(ids.length) G.picker = ids.sort((a,b) => (G.scores[a]||0) - (G.scores[b]||0))[0];
-  G.phase = "board"; G.fill = Date.now(); G.token = Date.now(); SFX.fill(); deadline(PICK_MS, "pick", autoPick); commit();
+  G.phase = "board"; G.fill = Date.now(); G.token = Date.now(); SFX.fill(); deadline(0); commit();
 }
 function toFinal(){
   hush();
@@ -855,7 +879,7 @@ function fAcceptHints(){ if(G.phase !== "freveal") return; for(const id of playe
 const fAllJudged = () => players().every(id => G.fDone[id]);
 function finish(){ if(G.phase !== "freveal" || !fAllJudged()) return; deadline(0); G.phase = "over"; SFX.fill(); commit();
   const top = players().sort((a,b) => G.scores[b] - G.scores[a])[0]; if(top) speak(nameOf(top) + " wins!"); }
-function startGame(){ const ids = players(); if(!ids.length || G.phase !== "lobby") return; G.picker = ids[Math.floor(Math.random()*ids.length)]; G.phase = "board"; G.fill = Date.now(); G.token = Date.now(); SFX.fill(); deadline(PICK_MS, "pick", autoPick); commit(); }
+function startGame(){ const ids = players(); if(!ids.length || G.phase !== "lobby") return; G.picker = ids[Math.floor(Math.random()*ids.length)]; G.phase = "board"; G.fill = Date.now(); G.token = Date.now(); SFX.fill(); deadline(0); commit(); }
 
 /* ===== rendering (everyone) ===== */
 let peekA = null, lockUntil = 0, openSeen = {}, sentTok = null, lastFlashTok = null, lastStage = "";
@@ -898,7 +922,7 @@ function render(){
   } else if((ph === "clue" || ph === "ddclue" || ph === "reveal" || ph === "vote") && G.q){
     const isDD = G.cur && G.board[G.cur.c][G.cur.r].dd;
     const showAns = (ph === "reveal" || ph === "vote") && G.ans;
-    h = `<div class="cluebox${lastStage !== "q"+(G.cur?G.cur.c+"-"+G.cur.r:"") ? " enter" : ""}"><div class="meta">${esc(G.q.cat)} · <b>${isDD ? "Daily Double " + money(G.ddWager) : "$" + G.q.v}</b></div><p class="clue">${esc(G.q.q)}</p>${showAns ? `<p class="ans${lastStage.endsWith("|f") ? "" : " enter"}">${esc(G.ans)}${G.ansX ? `<small>also accept: ${esc(G.ansX)}</small>` : ""}</p>` : ""}</div>`;
+    h = `<div class="cluebox${lastStage !== "q"+(G.cur?G.cur.c+"-"+G.cur.r:"") ? " enter" : ""}"><div class="meta">${esc(G.q.cat)} · <b>${isDD ? "Daily Double " + money(G.ddWager) : "$" + G.q.v}</b></div><p class="clue ${clueLen(G.q.q)}">${esc(G.q.q)}</p>${showAns ? `<p class="ans${lastStage.endsWith("|f") ? "" : " enter"}">${esc(G.ans)}${G.ansX ? `<small>also accept: ${esc(G.ansX)}</small>` : ""}</p>` : ""}</div>`;
     if(ph === "reveal"){
       const lg = (G.guesses || []).slice(-1)[0];
       h += `<p class="msg small">${G.lastRight ? (G.lastRight === me ? "You got it! You pick next." : nm(G.lastRight) + " got it") : "Nobody got it"}</p>${lg && lg.text ? `<p class="meta">${nm(lg.pid)} said “${esc(lg.text)}”</p>` : ""}`;
@@ -918,6 +942,8 @@ function render(){
       if(G.buzzOpen && !(G.token in openSeen)) openSeen[G.token] = now();
       const cls = locked ? "off" : sentTok === G.token ? "sent" : G.buzzOpen ? "" : "wait";
       const label = !inG ? "WATCHING" : G.locked.includes(me) ? "MISSED" : sentTok === G.token ? "SENT" : G.buzzOpen ? "BUZZ" : "WAIT";
+      const lw = (G.guesses || []).slice(-1)[0];
+      if(lw && lw.verdict === "wrong") h += `<p class="msg small" style="color:#ff6b62">${lw.pid === me ? "Wrong. You're locked out of this one." : esc(nameOf(lw.pid)) + " was wrong." + (locked ? "" : " Your chance!")}</p>`;
       h += `<button id="buzz" class="${cls}" type="button">${label}</button>${G.buzzOpen ? timerBar() : ""}${guessList() ? `<p class="meta" style="text-transform:none">${guessList()}</p>` : ""}`;
     }
   } else if(ph === "roundend"){
@@ -1101,6 +1127,7 @@ document.addEventListener("keydown", hostKey);
 let qrCache = {}, fAllHints = null;
 function qrSVG(url, cell){ const key = url + cell; if(qrCache[key]) return qrCache[key]; try{ const q = qrcode(0, "M"); q.addData(url); q.make(); return qrCache[key] = q.createSvgTag({cellSize: cell, margin: 1, scalable: true}); }catch(e){ return ""; } }
 const joinURL = () => location.origin + location.pathname + "?code=" + CODE;
+const clueLen = s => (s || "").length > 120 ? "xlong" : (s || "").length > 75 ? "long" : "";
 const hintTag = v => v === "right" ? `<span class="hint right">Looks right</span>` : v === "maybe" ? `<span class="hint maybe">Close. Your call</span>` : `<span class="hint wrong">Doesn't match</span>`;
 function renderTV(){
   const ph = G.phase, url = joinURL(), shortUrl = (location.host + location.pathname).replace(/\/index\.html$/, "/").replace(/\/$/, "");
@@ -1120,6 +1147,7 @@ function renderTV(){
       <div style="display:flex;flex-direction:column;gap:2vh;align-items:center"><div class="bigqr">${qrSVG(url, 6)}</div><p class="muted" style="margin:0;font-size:clamp(14px,1.3vw,22px)">Or scan to join</p>
       <div class="settings"><label><input type="checkbox" id="set-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud.</b> The laptop reads each clue, and buzzers open when it finishes.</span></label>
       <label><input type="checkbox" id="set-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy.</b> A second board, $400 to $2,000, with two Daily Doubles.</span></label>
+      <div class="pace"><b>Reader voice</b>${voiceSelect("set-voice")}</div>
       <div class="pace"><b>Pace</b><div class="seg">${Object.entries(PACES).map(([k, p]) => `<button type="button" class="${G.settings.pace === k ? "on" : ""}" data-pace="${k}">${p.label}</button>`).join("")}</div><span class="muted">${esc((PACES[G.settings.pace] || PACES.normal).note)}</span></div>
       <span class="muted" style="font-size:14px">Buzz in, then type your answer. Spelling doesn't have to be perfect, and the game judges it. Fix any bad call from the Players menu (M). Questions from ${esc(G.src)}.</span></div></div></div>`;
   } else if(ph === "board"){
@@ -1133,8 +1161,9 @@ function renderTV(){
     else if(ph === "vote") st = `${nm(G.vote.pid)} answered`;
     else if(ph === "ddclue") st = nm(G.picker) + " is typing an answer";
     else if(G.winner) st = nm(G.winner) + " is typing an answer";
+    else if(G.buzzOpen && lg && lg.verdict === "wrong"){ st = `<span class="wrongword">WRONG</span> ${nm(lg.pid)} said <span style="text-transform:none">“${esc(lg.text || "nothing")}”</span>. <span class="go">Anyone else? Buzz in!</span>`; }
     else if(G.buzzOpen){ st = "BUZZ IN"; cls = " go"; }
-    else if(lg && lg.verdict === "wrong") st = `${nm(lg.pid)} said <span style="text-transform:none">“${esc(lg.text || "nothing")}”</span>. Nope.`;
+    else if(lg && lg.verdict === "wrong") st = `<span class="wrongword">WRONG</span> ${nm(lg.pid)} said <span style="text-transform:none">“${esc(lg.text || "nothing")}”</span>`;
     else st = `<span class="muted">${G.settings.read ? "Listen up…" : "Read it. Buzzers open soon"}</span>`;
     const showAns = (ph === "reveal" || ph === "vote") && G.ans;
     const misses = (G.guesses || []).filter(g => g.verdict === "wrong" && ph !== "reveal");
@@ -1146,7 +1175,7 @@ function renderTV(){
     const c = contenders();
     h = `<div class="splash dj${lastStage !== "fcat" ? " enter" : ""}"><p class="meta">Final Jeopardy</p><p class="who" style="font-size:clamp(48px,7vw,130px)">${esc(G.fin && G.fin.cat)}</p><p class="meta">Lock in your wager on your phone</p><p class="meta">${c.length ? c.map(id => `${nm(id)} ${P[id].fwIn ? "✓" : "…"}`).join(" · ") : "Nobody has money to wager. Everyone can still answer."}</p></div>${bar()}`;
   } else if(ph === "fclue"){
-    h = `<div class="tv-clue${lastStage !== "fclue" ? " enter" : ""}"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue">${esc(G.fin.q)}</p></div><p class="tv-status"><span data-secs></span> seconds · ${ids.map(id => `${nm(id)} ${P[id].faIn ? "✓" : "…"}`).join(" · ")}</p>${bar()}`;
+    h = `<div class="tv-clue${lastStage !== "fclue" ? " enter" : ""}"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue ${clueLen(G.fin.q)}">${esc(G.fin.q)}</p></div><p class="tv-status"><span data-secs></span> seconds · ${ids.map(id => `${nm(id)} ${P[id].faIn ? "✓" : "…"}`).join(" · ")}</p>${bar()}`;
   } else if(ph === "freveal" || ph === "over"){
     h = `<div class="tv-clue" style="flex:none;padding:2.5vh 3vw"><div class="meta">Final Jeopardy · ${esc(G.fin.cat)}</div><p class="clue" style="font-size:clamp(22px,2.6vw,48px)">${esc(G.fin.q)}</p><p class="ans${lastStage !== ph ? " enter" : ""}">${esc(G.fin.a)}${G.fin.x ? `<small>also accept: ${esc(G.fin.x)}</small>` : ""}</p></div>
       <div class="flist">${ids.map(id => { const p = P[id], d = G.fDone[id], hn = (G.fHint || {})[id];
@@ -1161,6 +1190,7 @@ function renderTV(){
   document.querySelectorAll("#tv-scores .sc").forEach(el => el.onclick = openMenu);
   const rd = $("set-read"); if(rd) rd.onchange = () => { G.settings.read = rd.checked; commit(); if(rd.checked) speak("Clues will be read out loud."); };
   const d = $("set-dj"); if(d) d.onchange = () => { G.settings.dj = d.checked; commit(); };
+  wireVoice("set-voice");
   document.querySelectorAll("[data-pace]").forEach(b => b.onclick = () => { G.settings.pace = b.dataset.pace; applyPace(); commit(); });
   renderHostBar(); renderScores($("tv-scores"));
   document.querySelectorAll("#tv-scores .sc").forEach(el => { const id = el.dataset.id; el.classList.toggle("buzzed", (ph === "clue" && G.winner === id) || (ph === "ddclue" && G.picker === id) || (ph === "vote" && G.vote && G.vote.pid === id)); el.classList.toggle("out", ph === "clue" && G.locked.includes(id)); });
@@ -1170,7 +1200,7 @@ function openMenu(){
   const ids = Object.keys(G.scores).filter(id => P[id]);
   $("sheet-inner").innerHTML = `<div class="row"><b class="grow" style="font-size:20px">Players and game</b><button class="btn sm" id="m-close" type="button">Done</button></div>
     ${ids.map(id => `<div class="prow" style="--c:${colorOf(id)}"><span class="nm" style="color:${colorOf(id)}">${esc(nameOf(id))}</span><input class="pt-in" data-set="${id}" type="number" inputmode="numeric" step="100" value="${G.scores[id]||0}" aria-label="Score for ${esc(nameOf(id))}"><button class="btn sm" data-adj="${id}" data-d="-100" type="button">−100</button><button class="btn sm" data-adj="${id}" data-d="100" type="button">+100</button>${G.phase === "board" && G.picker !== id ? `<button class="btn sm" data-pk="${id}" type="button">Give pick</button>` : ""}<button class="btn sm" data-rm="${id}" type="button">Remove</button></div>`).join("")}
-    <div class="settings"><label><input type="checkbox" id="m-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud</b></span></label><label><input type="checkbox" id="m-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy</b> after round one</span></label></div>
+    <div class="settings"><label><input type="checkbox" id="m-read" ${G.settings.read?"checked":""}><span><b>Read clues out loud</b></span></label>${voiceSelect("m-voice")}<label><input type="checkbox" id="m-dj" ${G.settings.dj?"checked":""}><span><b>Double Jeopardy</b> after round one</span></label></div>
     <span class="muted" style="font-size:14px">Room ${esc(CODE)} · ${conns.size} direct connection${conns.size === 1 ? "" : "s"} · backup relay ${relayCount() ? "on" : "off"} · questions from ${esc(G.src)}</span>
     <button class="btn wide" id="m-share" type="button">Share invite link</button>
     ${["board","clue","reveal","dd","ddclue"].includes(G.phase) ? `<button class="btn wide" id="m-final" type="button">Skip to Final Jeopardy</button>` : ""}
@@ -1195,6 +1225,7 @@ function openMenu(){
     else if(!players().length && G.phase !== "lobby"){ newGame(); }
     commit(); openMenu();
   });
+  wireVoice("m-voice");
   const q = $("m-read"); q.onchange = () => { G.settings.read = q.checked; commit(); };
   const d = $("m-dj"); d.onchange = () => { G.settings.dj = d.checked; commit(); };
   on("m-final", () => { closeMenu(); toFinal(); });
